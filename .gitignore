@@ -1,0 +1,3 @@
+build/stills/
+build/*.jpg
+__pycache__/
