@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>人死后会去哪</title>
+<style>
+  @font-face { font-family: KuaiLe; src: url(assets/zcool-kuaile-subset.woff2); }
+  html, body { margin: 0; height: 100%; background: #000; }
+  body { display: grid; place-items: center; }
+  canvas { width: min(100vw, 177.78vh); aspect-ratio: 16 / 9; display: block; }
+  #play { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); font: 700 18px KuaiLe, sans-serif;
+          padding: 10px 24px; border-radius: 999px; border: 0; background: #DE6F52; color: #fff; cursor: pointer; }
+  body.render #play { display: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<button id="play">▶ 播放</button>
+<script src="src/score.js"></script>
+<script src="src/paper.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/chars.js"></script>
+<script src="src/visuals.js"></script>
+<script>
+const cv = document.getElementById('c'), c2d = cv.getContext('2d');
+window.renderFrame = t => drawFrame(c2d, t);
+window.ready = (async () => { await Promise.all([document.fonts.load('40px KuaiLe', '人死后')]); makeTextures(); drawFrame(c2d, 0); })();
+window.renderAudioBase64 = async () => {
+  const buf = await renderSoundtrack(44100), L = buf.getChannelData(0), R = buf.getChannelData(1);
+  let peak = 0; for (let i = 0; i < L.length; i++) peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
+  const k = 0.891 / peak, pcm = new Int16Array(L.length * 2);
+  for (let i = 0; i < L.length; i++) { pcm[2 * i] = L[i] * k * 32767; pcm[2 * i + 1] = R[i] * k * 32767; }
+  const bytes = new Uint8Array(pcm.buffer); let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+if (location.search.includes('render')) document.body.classList.add('render');
+else {
+  const btn = document.getElementById('play'); let ac = null, buffer = null, t0 = 0;
+  btn.onclick = async () => { btn.textContent = '合成声音中…'; buffer = buffer || await renderSoundtrack(44100); ac = ac || new AudioContext();
+    const src = ac.createBufferSource(); src.buffer = buffer; src.connect(ac.destination); t0 = ac.currentTime + .05; src.start(t0); btn.textContent = '↺ 重播'; };
+  const loop = () => { if (ac) drawFrame(c2d, Math.min(DUR, ac.currentTime - t0)); requestAnimationFrame(loop); };
+  window.ready.then(loop);
+}
+</script>
+</body>
+</html>
