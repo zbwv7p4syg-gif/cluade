@@ -102,7 +102,7 @@ if (arg === '--stills') {
   console.log('wrote', wav);
   const out = path.join(BUILD, 'party.mp4');
   const ff = spawn(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', '-', '-i', wav,
-    '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-r', String(FPS),
+    '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-maxrate', '3.6M', '-bufsize', '7.2M', '-pix_fmt', 'yuv420p', '-r', String(FPS),
     '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
   for (let i = 0; i < FPS * DUR; i++) {
     await page.evaluate(t => window.renderFrame(t), i / FPS);
