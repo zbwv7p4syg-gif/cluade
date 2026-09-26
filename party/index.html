@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code 电音派对</title>
+<style>
+  @font-face { font-family: Fredoka; src: url(assets/Fredoka-Bold.ttf); font-weight: 700; }
+  @font-face { font-family: Fredoka; src: url(assets/Fredoka-SemiBold.ttf); font-weight: 600; }
+  @font-face { font-family: QingKe; src: url(assets/zcool-qingke-subset.woff2); }
+  @font-face { font-family: NotoSC; src: url(assets/noto-sans-sc-subset.woff2); font-weight: 100 900; }
+  html, body { margin: 0; height: 100%; background: #000; }
+  body { display: grid; place-items: center; }
+  canvas { width: min(100vw, 177.78vh); aspect-ratio: 16 / 9; display: block; }
+  #play { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); font: 700 18px NotoSC, sans-serif;
+          padding: 10px 24px; border-radius: 999px; border: 0; background: #D97757; color: #fff; cursor: pointer; }
+  body.render #play { display: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<button id="play">▶ 开始派对</button>
+<script src="src/score.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/clawd.js"></script>
+<script src="src/visuals.js"></script>
+<script>
+const cv = document.getElementById('c'), c2d = cv.getContext('2d'), SCALE = cv.width / VW;
+window.renderFrame = t => drawFrame(c2d, t, SCALE);
+window.ready = (async () => {
+  await Promise.all(['700 30px Fredoka', '600 30px Fredoka', '40px QingKe', '700 30px NotoSC'].map(f => document.fonts.load(f, '派对 CLAUDE ✻')));
+  drawFrame(c2d, 0, SCALE);
+})();
+const toB64 = bytes => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
+// the soundtrack as 16-bit stereo PCM, peak-normalised to -1 dBFS (gain only: timing untouched)
+window.renderAudioBase64 = async () => {
+  const buf = await renderSoundtrack(44100), L = buf.getChannelData(0), R = buf.getChannelData(1);
+  let peak = 0; for (let i = 0; i < L.length; i++) peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
+  const k = 0.891 / peak, pcm = new Int16Array(L.length * 2);
+  for (let i = 0; i < L.length; i++) { pcm[2 * i] = L[i] * k * 32767; pcm[2 * i + 1] = R[i] * k * 32767; }
+  return toB64(new Uint8Array(pcm.buffer));
+};
+// calibration: one isolated kick of a given style, same instruments, mono
+window.renderReference = async style => {
+  const buf = await renderSoundtrack(44100, { kick: [{ t: 0.2, g: 1, style }] }, 1.0), L = buf.getChannelData(0), R = buf.getChannelData(1);
+  const pcm = new Int16Array(L.length); for (let i = 0; i < L.length; i++) pcm[i] = Math.max(-1, Math.min(1, (L[i] + R[i]) / 2)) * 32767;
+  return toB64(new Uint8Array(pcm.buffer));
+};
+window.scoreTimes = () => JSON.parse(JSON.stringify(SCORE));
+if (location.search.includes('render')) document.body.classList.add('render');
+else {
+  const btn = document.getElementById('play');
+  let ac = null, buffer = null, t0 = 0;
+  btn.onclick = async () => {
+    btn.textContent = '合成音乐中…';
+    buffer = buffer || await renderSoundtrack(44100);
+    ac = ac || new AudioContext();
+    const src = ac.createBufferSource(); src.buffer = buffer; src.connect(ac.destination);
+    t0 = ac.currentTime + 0.05; src.start(t0); btn.textContent = '↺ 再来一次';
+  };
+  const loop = () => { if (ac) drawFrame(c2d, Math.min(DUR, ac.currentTime - t0), SCALE); requestAnimationFrame(loop); };
+  window.ready.then(loop);
+}
+</script>
+</body>
+</html>
