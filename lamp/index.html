@@ -1,0 +1,286 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>拉灯绳的房间</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap">
+<style>
+  /* Layout: one full-screen SVG room; the scene is fixed in a 390×760 phone frame, wall and floor run past its edges. */
+  :root {
+    --wall: #E9DCC6; --wall-dark: #D8C7AB; --floor: #B98A5E; --floor-line: #A07449;
+    --ink: #3A2A24; --clawd: #D97757; --warm: #FFD58A; --night: #0E0C18;
+    --font-display: "ZCOOL KuaiLe", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body { background: var(--night); color: var(--ink); font-family: var(--font-display);
+         -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+  #stage { position: fixed; inset: 0; }
+  svg { width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { position: fixed; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 14px); text-align: center; pointer-events: none;
+         padding-inline: 16px; transition: color .2s; }
+  #hint { font-size: clamp(20px, 5.4vw, 28px); letter-spacing: .04em; }
+  #count { margin-top: 6px; font-size: clamp(13px, 3.6vw, 16px); opacity: .7; font-variant-numeric: tabular-nums; }
+  body.dark #hud { color: #EDE3D2; }
+  #shade-dark { transition: opacity .12s; }
+  .lit-only { transition: opacity .12s; }
+  #bead:focus-visible { outline: none; }
+  #bead:focus-visible + #bead-ring { stroke: var(--clawd); }
+</style>
+
+<div id="stage">
+<svg viewBox="0 0 390 760" preserveAspectRatio="xMidYMid meet" aria-label="一个有台灯、灯绳和门的房间">
+  <defs>
+    <radialGradient id="cone" cx="0.5" cy="0" r="1">
+      <stop offset="0" stop-color="#FFF1C4" stop-opacity=".85"/>
+      <stop offset=".6" stop-color="#FFE3A0" stop-opacity=".25"/>
+      <stop offset="1" stop-color="#FFE3A0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bulbGlow">
+      <stop offset="0" stop-color="#FFF6D8"/>
+      <stop offset=".35" stop-color="#FFE39A" stop-opacity=".8"/>
+      <stop offset="1" stop-color="#FFE39A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="spill" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#FFD58A" stop-opacity=".75"/>
+      <stop offset="1" stop-color="#FFD58A" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="beadGlow">
+      <stop offset="0" stop-color="#C9FFD8" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#C9FFD8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- the room -->
+  <rect x="-1200" y="-1200" width="2790" height="1840" fill="var(--wall)"/>
+  <rect x="-1200" y="-1200" width="2790" height="1234" fill="var(--wall-dark)"/>
+  <rect x="-1200" y="34" width="2790" height="6" fill="#CDBB9C"/>
+  <rect x="-1200" y="640" width="2790" height="900" fill="var(--floor)"/>
+  <g stroke="var(--floor-line)" stroke-width="2">
+    <line x1="-1200" y1="672" x2="1590" y2="672"/><line x1="-1200" y1="712" x2="1590" y2="712"/><line x1="-1200" y1="760" x2="1590" y2="760"/>
+    <line x1="60" y1="640" x2="60" y2="672"/><line x1="210" y1="640" x2="210" y2="672"/><line x1="130" y1="672" x2="130" y2="712"/><line x1="300" y1="672" x2="300" y2="712"/><line x1="20" y1="712" x2="20" y2="760"/><line x1="240" y1="712" x2="240" y2="760"/>
+  </g>
+  <rect x="-1200" y="628" width="2790" height="12" fill="#F3EADA"/>
+  <!-- a picture of Clawd on the wall -->
+  <g transform="translate(56 250)">
+    <rect x="-38" y="-46" width="76" height="92" rx="3" fill="#8A6A4E"/>
+    <rect x="-30" y="-38" width="60" height="76" fill="#FBF6EC"/>
+    <g transform="translate(0 16) scale(.5)" fill="var(--clawd)">
+      <rect x="-32" y="-58" width="64" height="44"/><rect x="-40" y="-44" width="8" height="12"/><rect x="32" y="-44" width="8" height="12"/>
+      <rect x="-26" y="-14" width="7" height="14"/><rect x="-14" y="-14" width="7" height="14"/><rect x="7" y="-14" width="7" height="14"/><rect x="19" y="-14" width="7" height="14"/>
+      <rect x="-16" y="-48" width="6" height="10" fill="var(--ink)"/><rect x="10" y="-48" width="6" height="10" fill="var(--ink)"/>
+    </g>
+  </g>
+  <!-- rug and a plant -->
+  <ellipse cx="150" cy="690" rx="120" ry="20" fill="#C9594A" opacity=".85"/>
+  <ellipse cx="150" cy="690" rx="100" ry="14" fill="none" stroke="#F3D7B8" stroke-width="3" stroke-dasharray="6 6"/>
+  <g transform="translate(40 628)">
+    <path d="M-16 0 L16 0 L12 -30 L-12 -30 Z" fill="#B8664A"/>
+    <path d="M0 -30 C-4 -60 -26 -70 -30 -90 M0 -30 C2 -64 14 -80 26 -96 M0 -30 C0 -60 0 -80 -4 -104" stroke="#4E8F4E" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <ellipse cx="-30" cy="-90" rx="10" ry="6" fill="#5FA35A"/><ellipse cx="26" cy="-96" rx="10" ry="6" fill="#5FA35A"/><ellipse cx="-4" cy="-104" rx="7" ry="10" fill="#5FA35A"/>
+  </g>
+
+  <!-- the door (frame + lit room behind it) -->
+  <rect x="252" y="412" width="96" height="228" fill="#7A5A40"/>
+  <rect id="doorway" x="260" y="420" width="80" height="220" fill="#2A1E1A"/>
+
+  <!-- the lamp -->
+  <line x1="150" y1="40" x2="150" y2="190" stroke="#4A3B34" stroke-width="3"/>
+  <path d="M112 236 L188 236 L170 190 L130 190 Z" fill="#3F7F74" stroke="#2E5F57" stroke-width="3" stroke-linejoin="round"/>
+  <circle id="bulb" cx="150" cy="244" r="12" fill="#F4ECD8" stroke="#BFB39C" stroke-width="2"/>
+  <line id="cord" x1="182" y1="226" x2="182" y2="470" stroke="#7B6A5E" stroke-width="2.5"/>
+
+  <!-- darkness -->
+  <rect id="shade-dark" x="-1200" y="-1200" width="2790" height="2800" fill="var(--night)" opacity=".86"/>
+
+  <!-- light (drawn above the darkness so it reads as light) -->
+  <g id="light" class="lit-only">
+    <path d="M114 240 L186 240 L330 640 L-30 640 Z" fill="url(#cone)"/>
+    <ellipse cx="150" cy="640" rx="170" ry="26" fill="#FFE9B0" opacity=".35"/>
+    <circle cx="150" cy="244" r="70" fill="url(#bulbGlow)"/>
+    <circle cx="150" cy="244" r="12" fill="#FFF8E2"/>
+  </g>
+
+  <!-- the doorway glows when the door is open -->
+  <g id="doorlight" opacity="0">
+    <rect x="260" y="420" width="80" height="220" fill="var(--warm)"/>
+    <rect x="260" y="560" width="80" height="80" fill="#F2BF72"/>
+    <path d="M260 640 L340 640 L230 720 L120 720 Z" fill="url(#spill)"/>
+  </g>
+
+  <!-- Clawd -->
+  <g id="clawd" opacity="0">
+    <g id="clawd-body" fill="var(--clawd)">
+      <rect x="-32" y="-58" width="64" height="44"/>
+      <rect id="armL" x="-40" y="-44" width="8" height="12"/><rect id="armR" x="32" y="-44" width="8" height="12"/>
+      <g id="legsA"><rect x="-26" y="-14" width="7" height="14"/><rect x="7" y="-14" width="7" height="14"/></g>
+      <g id="legsB"><rect x="-14" y="-14" width="7" height="14"/><rect x="19" y="-14" width="7" height="14"/></g>
+      <rect id="eyeL" x="-16" y="-48" width="6" height="10" fill="var(--ink)"/><rect id="eyeR" x="10" y="-48" width="6" height="10" fill="var(--ink)"/>
+    </g>
+  </g>
+  <g id="bubble" opacity="0">
+    <rect x="-34" y="-40" width="68" height="34" rx="12" fill="#FBF6EC" stroke="var(--ink)" stroke-width="2"/>
+    <path d="M-6 -7 L0 4 L6 -7" fill="#FBF6EC" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
+    <rect x="-8" y="-10" width="16" height="4" fill="#FBF6EC"/>
+    <text id="bubble-text" x="0" y="-16" text-anchor="middle" font-size="18" fill="var(--ink)" font-family="var(--font-display)">哼！</text>
+  </g>
+
+  <!-- the door panel (above the darkness, tinted by state) -->
+  <g id="door" transform="translate(260 0)">
+    <rect id="door-panel" x="0" y="420" width="80" height="220" fill="#A87A52"/>
+    <rect x="10" y="434" width="60" height="80" fill="none" stroke="#8C623F" stroke-width="3"/>
+    <rect x="10" y="530" width="60" height="96" fill="none" stroke="#8C623F" stroke-width="3"/>
+    <circle cx="68" cy="536" r="5" fill="#E8C069"/>
+    <rect id="door-shade" x="0" y="420" width="80" height="220" fill="var(--night)" opacity=".75"/>
+  </g>
+
+  <!-- the pull cord handle (glows faintly in the dark so you can find it) -->
+  <circle id="bead-glow" cx="182" cy="478" r="26" fill="url(#beadGlow)" opacity="0"/>
+  <line id="cord-top" x1="182" y1="226" x2="182" y2="470" stroke="#7B6A5E" stroke-width="2.5" opacity="0"/>
+  <circle id="bead" cx="182" cy="478" r="9" fill="#EFE6D6" stroke="#6D5B4F" stroke-width="2.5" tabindex="0" role="button" aria-label="拉灯绳"/>
+  <circle id="bead-ring" cx="182" cy="478" r="15" fill="none" stroke="transparent" stroke-width="3"/>
+  <circle id="bead-hit" cx="182" cy="478" r="42" fill="transparent" style="cursor: grab"/>
+</svg>
+</div>
+
+<div id="hud"><div id="hint">往下拉灯绳</div><div id="count"></div></div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const CORD_X = 182, BEAD_Y = 478, FLOOR = 640, DOOR_X = 300, UNDER_CORD = 218;
+  const S = { light: false, busy: false, bead: BEAD_Y, door: 0, doorLight: 0,
+              clawd: { x: DOOR_X, lift: 0, dir: -1, walk: 0, on: 0, squash: 1 }, saves: 0 };
+  try { S.saves = +localStorage.getItem('clawd-saves') || 0; } catch (e) {}
+
+  // ---------------------------------------------------------------- sound (starts on the first touch)
+  let ac = null;
+  function audio() { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (ac && ac.state === 'suspended') ac.resume(); return ac; }
+  function tone(f0, f1, dur, type = 'sine', vol = .15) {
+    if (!ac) return; const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+  }
+  const sfx = {
+    click: () => { tone(2200, 900, .03, 'square', .08); setTimeout(() => tone(1400, 600, .04, 'square', .06), 60); },
+    step: () => tone(160, 90, .07, 'sine', .12),
+    creak: () => tone(220, 140, .45, 'sawtooth', .03),
+    boing: () => tone(260, 700, .18, 'triangle', .12),
+    thud: () => tone(120, 50, .15, 'sine', .25),
+    hmph: () => { tone(420, 300, .12, 'triangle', .1); setTimeout(() => tone(360, 240, .16, 'triangle', .1), 130); },
+  };
+
+  // ---------------------------------------------------------------- drawing
+  function render() {
+    const { clawd: c } = S;
+    $('shade-dark').setAttribute('opacity', S.light ? 0 : .86);
+    $('light').style.opacity = S.light ? 1 : 0;
+    document.body.classList.toggle('dark', !S.light);
+    $('bead-glow').setAttribute('opacity', S.light ? 0 : .8);
+    for (const id of ['bead', 'bead-ring', 'bead-hit', 'bead-glow']) $(id).setAttribute('cy', S.bead);
+    $('cord').setAttribute('y2', S.bead - 8);
+    // the cord shows through the dark near the handle
+    $('cord-top').setAttribute('y2', S.bead - 8); $('cord-top').setAttribute('y1', S.bead - 70); $('cord-top').setAttribute('opacity', S.light ? 0 : .5);
+    // door swings open on its left hinge
+    $('door').setAttribute('transform', `translate(260 0) scale(${1 - S.door * .86} 1)`);
+    $('door-shade').setAttribute('opacity', S.light ? 0 : .75 * (1 - S.door));
+    $('doorlight').setAttribute('opacity', S.doorLight);
+    // Clawd
+    const y = FLOOR - c.lift, sq = c.squash;
+    $('clawd').setAttribute('opacity', c.on);
+    $('clawd').setAttribute('transform', `translate(${c.x} ${y}) scale(${c.dir * (2 - sq)} ${sq})`);
+    $('clawd').style.filter = S.light ? '' : 'brightness(.5)';
+    const step = Math.floor(c.walk * 2) % 2, moving = c.walk > 0;
+    $('legsA').setAttribute('transform', moving && step ? 'translate(0 -4)' : '');
+    $('legsB').setAttribute('transform', moving && !step ? 'translate(0 -4)' : '');
+    $('armL').setAttribute('y', c.arms ? -64 : -44); $('armR').setAttribute('y', c.arms ? -64 : -44);
+    $('eyeL').setAttribute('height', c.blink ? 2 : 10); $('eyeR').setAttribute('height', c.blink ? 2 : 10);
+    $('eyeL').setAttribute('y', c.blink ? -44 : -48); $('eyeR').setAttribute('y', c.blink ? -44 : -48);
+    $('bubble').setAttribute('transform', `translate(${c.x} ${y - 70})`);
+    $('bubble').setAttribute('opacity', c.bubble || 0);
+    // text
+    $('hint').textContent = S.busy ? (S.light ? '……' : '咦？') : (S.light ? '再拉一下试试？' : '往下拉灯绳');
+    $('count').textContent = S.saves ? `Claude Code 已经帮你把灯打开了 ${S.saves} 次` : '';
+  }
+
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const ease = k => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+  function tween(ms, fn) {
+    return new Promise(res => {
+      const t0 = performance.now();
+      const tick = now => { const k = Math.min(1, (now - t0) / ms); fn(k); render(); k < 1 ? requestAnimationFrame(tick) : res(); };
+      requestAnimationFrame(tick);
+    });
+  }
+  function springBead(from) { return tween(380, k => { S.bead = BEAD_Y + (from - BEAD_Y) * Math.cos(k * Math.PI * 2.5) * (1 - k); }); }
+  async function walkTo(x, speed = 95) {
+    const c = S.clawd, from = c.x, ms = Math.abs(x - from) / speed * 1000; c.dir = x < from ? -1 : 1;
+    let last = 0;
+    await tween(ms, k => { c.x = from + (x - from) * k; c.walk = k * ms / 180 + .01; c.lift = Math.abs(Math.sin(c.walk * Math.PI)) * 3;
+      const s = Math.floor(c.walk * 2); if (s !== last) { last = s; sfx.step(); } });
+    c.walk = 0; c.lift = 0;
+  }
+
+  // ---------------------------------------------------------------- Clawd switches the light back on
+  async function rescue() {
+    S.busy = true; const c = S.clawd; render();
+    await wait(700);
+    sfx.creak(); await tween(450, k => { S.door = ease(k); S.doorLight = ease(k); });
+    c.x = DOOR_X; c.dir = -1;
+    await tween(250, k => { c.on = k; });
+    c.blink = true; render(); await wait(140); c.blink = false; render(); await wait(200);
+    await walkTo(UNDER_CORD);
+    // crouch, jump, grab the handle, pull it down on the way back
+    await tween(160, k => { c.squash = 1 - .18 * Math.sin(k * Math.PI / 2); });
+    sfx.boing(); c.arms = true;
+    const reach = FLOOR - BEAD_Y - 58;
+    await tween(300, k => { c.squash = .82 + .18 * Math.min(1, k * 3) + .08 * Math.sin(k * Math.PI); c.lift = reach * (1 - Math.pow(1 - k, 2)); });
+    c.squash = 1;
+    await tween(260, k => { c.lift = reach - 70 * ease(k); S.bead = BEAD_Y + 70 * ease(k); });
+    sfx.click(); S.light = true; S.saves++; try { localStorage.setItem('clawd-saves', S.saves); } catch (e) {} render();
+    c.arms = false; const drop = c.lift;
+    springBead(S.bead);
+    await tween(220, k => { c.lift = drop * (1 - k * k); });
+    sfx.thud(); await tween(140, k => { c.squash = 1 - .15 * Math.sin(k * Math.PI); });
+    // turn to you, "hmph"
+    c.dir = 1; render(); await wait(150);
+    c.bubble = 1; $('bubble-text').textContent = ['哼！', '别关灯', '亮着多好', '又是你'][S.saves % 4]; sfx.hmph(); render();
+    await wait(1100); await tween(200, k => { c.bubble = 1 - k; });
+    await walkTo(DOOR_X);
+    await tween(220, k => { c.on = 1 - k; });
+    sfx.creak(); await tween(420, k => { S.door = 1 - ease(k); S.doorLight = 1 - ease(k); });
+    sfx.thud();
+    S.busy = false; render();
+  }
+
+  function toggleByUser() {
+    sfx.click();
+    if (!S.light) { S.light = true; render(); }
+    else { S.light = false; render(); rescue(); }
+  }
+
+  // ---------------------------------------------------------------- pulling the cord
+  const svg = document.querySelector('svg');
+  let drag = null;
+  function svgY(e) { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()).y; }
+  $('bead-hit').addEventListener('pointerdown', e => {
+    audio(); if (S.busy) return;
+    e.preventDefault(); drag = { y0: svgY(e), max: 0 }; $('bead-hit').setPointerCapture(e.pointerId);
+  });
+  $('bead-hit').addEventListener('pointermove', e => {
+    if (!drag) return; const dy = Math.max(0, Math.min(90, svgY(e) - drag.y0));
+    drag.max = Math.max(drag.max, dy); S.bead = BEAD_Y + dy; render();
+  });
+  async function release() {
+    if (!drag) return; const d = drag; drag = null;
+    if (d.max < 6) { await tween(160, k => { S.bead = BEAD_Y + 55 * Math.sin(k * Math.PI / 2); }); toggleByUser(); springBead(S.bead); return; }  // a tap pulls it for you
+    const pulled = d.max > 35; springBead(S.bead);
+    if (pulled) toggleByUser();
+  }
+  $('bead-hit').addEventListener('pointerup', release);
+  $('bead-hit').addEventListener('pointercancel', release);
+  $('bead').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') && !S.busy) { e.preventDefault(); audio(); drag = { max: 0 }; release(); } });
+  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  render();
+})();
+</script>

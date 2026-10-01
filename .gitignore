@@ -10,3 +10,6 @@ party/build/*.jpg
 song/build/
 lulu/build/stills/
 lulu/build/*.jpg
+afterlife/build/stills/
+afterlife/build/*.jpg
+afterlife/build/audio.wav
