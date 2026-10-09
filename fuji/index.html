@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>富士山下 · Claude Code 版</title>
+<style>
+  @font-face { font-family: Fredoka; src: url(assets/Fredoka-Bold.ttf); font-weight: 700; }
+  @font-face { font-family: NotoSerifSC; src: url(assets/noto-serif-sc-subset.woff2); font-weight: 200 900; }
+  html, body { margin: 0; height: 100%; background: #000; }
+  body { display: grid; place-items: center; }
+  canvas { width: min(100vw, 177.78vh); aspect-ratio: 16 / 9; display: block; }
+  #play { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); font: 700 18px NotoSerifSC, serif;
+          padding: 10px 24px; border-radius: 999px; border: 0; background: #E9EFF9; color: #141B33; cursor: pointer; }
+  body.render #play { display: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<button id="play">▶ 播放</button>
+<audio id="aud" src="build/bgm.wav" preload="auto"></audio>
+<script src="src/timeline.js"></script>
+<script src="src/chars.js"></script>
+<script src="src/visuals.js"></script>
+<script>
+const cv = document.getElementById('c'), c2d = cv.getContext('2d'), SCALE = cv.width / VW;
+window.renderFrame = t => drawFrame(c2d, t, SCALE);
+window.ready = (async () => { await Promise.all(['700 40px NotoSerifSC', '500 30px NotoSerifSC', '700 26px Fredoka'].map(f => document.fonts.load(f, '富士山下 Claude'))); drawFrame(c2d, 0, SCALE); })();
+if (location.search.includes('render')) document.body.classList.add('render');
+else {
+  const aud = document.getElementById('aud'), btn = document.getElementById('play');
+  btn.onclick = () => { aud.currentTime = 0; aud.play(); btn.textContent = '↺ 重播'; };
+  const loop = () => { drawFrame(c2d, aud.currentTime, SCALE); requestAnimationFrame(loop); };
+  window.ready.then(loop);
+}
+</script>
+</body>
+</html>
