@@ -13,3 +13,7 @@ lulu/build/*.jpg
 afterlife/build/stills/
 afterlife/build/*.jpg
 afterlife/build/audio.wav
+backrooms/build/stills/
+backrooms/build/*.jpg
+backrooms/build/audio.wav
+backrooms/build/remux.mp4
