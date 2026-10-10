@@ -251,7 +251,7 @@ const SHOT_FN = {
     const k = seg(t, .5, 1.6) * (1 - seg(t, 4.2, 5.2));
     if (k > 0) { c.save(); c.globalAlpha = k; c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(0,20,30,.7)'; c.shadowBlur = 24;
       c.font = `700 96px ${SERIF}`; c.fillStyle = '#F4F1EA'; c.fillText('我 记 得', 640, 200);
-      c.font = `500 24px ${SERIF}`; c.fillStyle = '#CFE6EC'; c.fillText('Claude Code 版 · 背景音乐 赵雷《我记得》', 640, 275); c.restore(); }
+      c.font = `500 24px ${SERIF}`; c.fillStyle = '#CFE6EC'; c.fillText('背景音乐 · 赵雷《我记得》', 640, 275); c.restore(); }
   },
   storm(c, t) {
     water(c, t, 1);
@@ -271,7 +271,7 @@ const SHOT_FN = {
     bubbles(c, t, mx, my - 70, 8, 5);
     const look = t > 11.0 && t < 12.2 ? -1 : 1, wide = flash > .3;
     soul(c, mx, my, u, ME({ walk: walking ? beatPos(t) / 2 : null, eyes: wide ? 'wide' : 'normal', lookX: look, aL: .5, aR: wide ? 2.2 : .3, sq: wide ? .05 : 0, rot: walking ? .05 : 0 }), t);
-    if (t > 10 && t < 12.7) { const k = seg(t, 10, 10.4) * (1 - seg(t, 12.3, 12.7)); c.save(); c.globalAlpha = k; c.font = `700 52px ${F_EN}`; c.fillStyle = '#FFE9C8'; c.textAlign = 'center'; c.fillText('?', mx + 30, my - 110 - 6 * Math.sin(t * 4)); c.restore(); }
+    if (t > 10 && t < 12.7) { const k = seg(t, 10, 10.4) * (1 - seg(t, 12.3, 12.7)); c.save(); c.globalAlpha = k; c.font = `700 52px ${SERIF}`; c.fillStyle = '#FFE9C8'; c.textAlign = 'center'; c.fillText('？', mx + 30, my - 110 - 6 * Math.sin(t * 4)); c.restore(); }
     veil(c, '#FFF8EA', Math.pow(seg(t, 14.1, 14.86), 1.5));
   },
   light(c, t) {
