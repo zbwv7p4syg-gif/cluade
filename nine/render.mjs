@@ -1,4 +1,4 @@
-// Renders 九分之九 · 像素 MV over the user's own copy of the song. Frames are drawn at 384×216 by several headless
+// Renders 几分之几 · 九九 (a pixel MV) over the user's own copy of the song. Frames are drawn at 384×216 by several headless
 // Chromium pages in parallel, then ffmpeg scales them 5× with nearest-neighbour (every art pixel becomes a crisp
 // 5×5 block in the 1920×1080 video) and muxes the song.
 //   node render.mjs <song.mp3> --lyrics a.lrc   decode the song to build/bgm.wav, render build/nine.mp4 with your subtitles

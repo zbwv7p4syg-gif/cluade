@@ -1,4 +1,4 @@
-// pixel.js — drawing helpers for 九分之九 · 像素 MV. Everything is drawn on a 384×216 canvas with whole-pixel
+// pixel.js — drawing helpers for 几分之几 · 九九 (a pixel MV). Everything is drawn on a 384×216 canvas with whole-pixel
 // rectangles, then scaled up 5× with nearest-neighbour (by CSS in the page, by ffmpeg in the video), so every
 // art pixel is a crisp 5×5 block in the 1920×1080 frame. Transparency and fades are Bayer dithers, never alpha.
 
@@ -203,7 +203,7 @@ function stars(g, t, n, y1, seed = 1, x0 = 0, w = PW) {
 }
 
 // ---------------------------------------------------------------- subtitles: the user's .lrc lines
-// Each character drops into place one after another; "九分之九" is gold. While the line is sung, a trail of
+// Each character drops into place one after another; "几分之几" is gold. While the line is sung, a trail of
 // paw prints walks along underneath, one step per beat, as if 九九 were following the words.
 function subtitleAt(t) {
   if (typeof USER_LYRICS === 'undefined') return null;
@@ -220,7 +220,7 @@ function subtitleAt(t) {
 function subtitle(g, t) {
   const s = subtitleAt(t); if (!s) return;
   const chars = [...s.text], tw = textW(s.text), x0 = R((PW - tw) / 2), y0 = PH - 27;
-  const gold = new Set(); for (let k = s.text.indexOf('九分之九'); k >= 0; k = s.text.indexOf('九分之九', k + 1)) for (let j = 0; j < 4; j++) gold.add(k + j);
+  const gold = new Set(); for (let k = s.text.indexOf('几分之几'); k >= 0; k = s.text.indexOf('几分之几', k + 1)) for (let j = 0; j < 4; j++) gold.add(k + j);
   const out = clamp((s.end - t) / .3);
   const wide = c => c.charCodeAt(0) > 0x2e7f ? 12 : 6;
   let x = x0;

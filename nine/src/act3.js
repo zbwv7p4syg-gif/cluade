@@ -288,7 +288,7 @@ SCENES.end = (g, t, lt) => {
   windowRoom(g, t, k, lit, {
     panes: gg => { const p = winPane(4); for (const [dx, dy] of [[0, 0]]) pawPrint(gg, p.x + 17 + dx, p.y + 18 + dy, '#E8E4F0'); },
   });
-  [...'九分之九'].forEach((ch, j) => {
+  [...'几分之几'].forEach((ch, j) => {
     const a = seg(t, 216.0 + j * BEAT, 216.3 + j * BEAT); if (a <= 0) return;
     ptext(g, ch, 156 + j * 24, 130 - R((1 - eout(a)) * 6), { size: 24, col: '#FFF3D6', outline: INK, shadow: '#8A6A50' });
   });

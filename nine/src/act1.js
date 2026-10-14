@@ -79,7 +79,7 @@ SCENES.window = (g, t, lt) => {
     },
   });
   // the title: one character per pane, with the last four panes
-  [...'九分之九'].forEach((ch, j) => {
+  [...'几分之几'].forEach((ch, j) => {
     const a = seg(t, paneOn(5 + j), paneOn(5 + j) + .25); if (a <= 0) return;
     ptext(g, ch, 156 + j * 24, 130 - R((1 - eout(a)) * 6), { size: 24, col: '#FFF3D6', outline: INK, shadow: '#C9A070' });
   });

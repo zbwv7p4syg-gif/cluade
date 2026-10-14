@@ -1,8 +1,8 @@
-// timeline.js — when everything happens in 九分之九 · 像素 MV. Shots cut on the sung lines (the user's .lrc and the
+// timeline.js — when everything happens in 几分之几 · 九九 (a pixel MV). Shots cut on the sung lines (the user's .lrc and the
 // four later lines it does not cover), the drum entry at 42.06 s and the 144 BPM grid.
 //
 // The story: 我 is nine and doing his 九九乘法表 homework when the yellow puppy with four white paws plants a paw on
-// "九九八十一", so the puppy is called 九九. The nine-pane window of his room keeps count: on each "九分之九" it
+// "九九八十一", so the puppy is called 九九. The nine-pane window of his room keeps count: on each "几分之几" it
 // lights up pane by pane. Time is told in dog years on a bone-shaped tag.
 
 const DUR = BEATMAP.duration;
@@ -49,7 +49,7 @@ const TAGS = [
   ['九九 · 15岁', 150.5, 156.2],
 ];
 
-// sung-syllable onsets of the three "九分之九" lines (Whisper word timestamps of this recording, measured by
+// sung-syllable onsets of the three "几分之几" lines (Whisper word timestamps of this recording, measured by
 // fraction/analyze.py; times only). Nine onsets each, so something lights (or goes out) on every one.
 const NINE_A = [75.04, 75.98, 76.68, 77.04, 77.56, 78.04, 78.96, 79.52, 79.96], NINE_A_END = 81.72;
 const NINE_B = [130.04, 130.94, 131.6, 132.12, 132.54, 132.94, 134.06, 134.5, 134.94];

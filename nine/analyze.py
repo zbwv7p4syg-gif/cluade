@@ -1,4 +1,4 @@
-"""Analyse the song and write src/beatmap.js for the 九分之九 pixel MV.
+"""Analyse the song and write src/beatmap.js for the 几分之几 · 九九 pixel MV.
 
     python3 analyze.py <song.mp3>
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>九分之九 · 像素 MV</title>
+<title>几分之几 · 九九 · 像素 MV</title>
 <style>
   @font-face { font-family: NinePixel; src: url(assets/nine-pixel.woff2); }
   html, body { margin: 0; height: 100%; background: #000; }
@@ -32,7 +32,7 @@
 const cv = document.getElementById('c'), c2d = cv.getContext('2d');
 c2d.imageSmoothingEnabled = false;
 window.renderFrame = t => drawFrame(c2d, t);
-window.ready = (async () => { await document.fonts.load(`12px ${PIX_FONT}`, '九分之九'); drawFrame(c2d, 0); })();
+window.ready = (async () => { await document.fonts.load(`12px ${PIX_FONT}`, '几分之几'); drawFrame(c2d, 0); })();
 if (location.search.includes('render')) document.body.classList.add('render');
 else {
   const aud = document.getElementById('aud'), btn = document.getElementById('play');
