@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我不难过 · 像素 MV</title>
+<style>
+  @font-face { font-family: NanguoPixel; src: url(assets/nanguo-pixel-subset.woff2); }
+  html, body { margin: 0; height: 100%; background: #000; }
+  body { display: grid; place-items: center; }
+  canvas { width: min(100vw, 177.78vh); aspect-ratio: 16 / 9; display: block; image-rendering: pixelated; }
+  #play { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); font: 24px NanguoPixel, monospace;
+          padding: 8px 20px; border: 3px solid #161226; background: #F4F0FF; color: #161226; cursor: pointer; }
+  body.render #play { display: none; }
+</style>
+</head>
+<body>
+<canvas id="c" width="480" height="270"></canvas>
+<button id="play">▶ 播放</button>
+<audio id="aud" src="build/bgm.wav" preload="auto"></audio>
+<script src="src/beatmap.js"></script>
+<script src="build/lyrics.js"></script><!-- written by `node render.mjs --lyrics your.lrc`, never committed -->
+<script src="src/timeline.js"></script>
+<script src="src/pixel.js"></script>
+<script src="src/scenes.js"></script>
+<script>
+const cv = document.getElementById('c'), c2d = cv.getContext('2d');
+c2d.imageSmoothingEnabled = false;
+window.renderFrame = t => drawFrame(c2d, t);
+window.ready = (async () => { await document.fonts.load(`12px ${PIX_FONT}`, '我不难过'); drawFrame(c2d, 0); })();
+if (location.search.includes('render')) document.body.classList.add('render');
+else {
+  const aud = document.getElementById('aud'), btn = document.getElementById('play');
+  btn.onclick = () => { aud.currentTime = 0; aud.play(); btn.textContent = '↺ 重播'; };
+  const loop = () => { drawFrame(c2d, aud.currentTime); requestAnimationFrame(loop); };
+  window.ready.then(loop);
+}
+</script>
+</body>
+</html>
