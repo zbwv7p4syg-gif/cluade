@@ -14,6 +14,7 @@
 | `pix.py` | 像素工具：缓动、点阵渐变与光晕、粒子和烟花、城市与花草、两个角色的精灵图、文字 |
 | `scenes.py` | 片头、27 个唱词镜头、四个间奏镜头、空档和片尾 |
 | `render.py` | 读歌词、分析音乐、排镜头、转场和字幕、分块并行编码、合成音乐 |
+| `cover.py` | 竖屏封面：两人站在两边楼顶，红线在大月亮前绕成一颗心，系着两人的小指。沿用 MV 的角色、片名字体和画法，画在 270×480 的画布上，放大 4 倍到 1080×1920 |
 
 ## 分镜
 
@@ -56,6 +57,7 @@ pip install pillow numpy
 python3 render.py /path/to/想你和我们以后.mp3 --lyrics 你的歌词.lrc                      # -> build/想你和我们以后_像素MV.mp4
 python3 render.py /path/to/想你和我们以后.mp3 --lyrics 你的歌词.lrc --stills 20,75,140   # 抽帧检查，输出到 build/stills/
 python3 render.py /path/to/想你和我们以后.mp3 --lyrics 你的歌词.lrc --range 0,20         # 只渲染一段带声音的预览
+python3 cover.py --lyrics 你的歌词.lrc                                                   # -> build/想你和我们以后_封面.png，1080×1920 竖屏封面
 ```
 
 默认用 4 个进程，各渲染一段连续的帧，最后不重新编码直接拼接，再合成音乐，在 4 核机器上大约两分半钟。用 `--jobs` 可以改进程数。
