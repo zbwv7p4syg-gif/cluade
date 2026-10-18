@@ -164,7 +164,7 @@ def beats_in(t0, t1):
     return [x for x in b if t0 <= x < t1]
 
 
-# ---------------------------------------------------------------- 片头
+# ---------------------------------------------------------------- 片头用到的夜景
 WIN_A, WIN_B = (98, 150), (384, 138)    # 片头两扇亮起的窗；第一句的分屏从这两扇窗展开
 
 
@@ -215,94 +215,405 @@ def lit_window(img, d, x, y, col, k, who):
     img.paste(sil, (int(x) - 4, int(y) - 2), sil)
 
 
+# ---------------------------------------------------------------- 片头：她小指上的红线飞过整座城市，系在他的小指上
+HAND = [
+    "...........ss.....",
+    "..........sSSs....",
+    "..........SSSs....",
+    "........RRSSSsRR..",
+    ".......R.RRRRRR.R.",
+    "........RRSrSsRR..",
+    ".........r.SSsr...",
+    "..........SSSs....",
+    "...ss.ss..SSSs....",
+    "..sSSsSSssSSSs....",
+    "..SSSSSSSSSSSs....",
+    ".sSSkSSkSSkSSs....",
+    ".SSSSSSSSSSSSs....",
+    "sSSSSSSSSSSSSs....",
+    "sSSSSSSSSSSSs.....",
+    "sSSSSSSSSSSSs.....",
+    ".sSSSSSSSSSSs.....",
+    "..sSSSSSSSSs......",
+    "..yYYYYYYYYYy.....",
+    ".yYYYYYYYYYYYy....",
+    ".YYYYYYYYYYYYY....",
+    ".YYYYYYYYYYYYY....",
+]
+HAND_KNOT = (17, 4)        # 红线从蝴蝶结右边那个环伸出去
+HS = 8                     # 特写放大倍数
+
+
+@lru_cache(None)
+def hand_img(sleeve, sleeve_s, flip=False):
+    pal = {'S': pix.SKIN, 's': pix.SKIN_S, 'k': (214, 160, 132), 'R': (232, 52, 72), 'r': (168, 30, 52), 'Y': sleeve, 'y': sleeve_s}
+    w = max(len(r) for r in HAND); h = len(HAND)
+    im = Image.new('RGBA', (w + 2, h + 2)); px = im.load()
+    for y, r in enumerate(HAND):
+        for x, ch in enumerate(r):
+            if ch != '.': px[x + 1, y + 1] = pal[ch] + (255,)
+    im = outline(im, OUT)
+    if flip: im = im.transpose(Image.FLIP_LEFT_RIGHT)
+    return im.resize((im.width * HS, im.height * HS), Image.NEAREST)
+
+
+def knot_xy(hx, hy, flip):
+    c = HAND_KNOT[0] + 1; wpad = max(len(r) for r in HAND) + 2
+    x = hx + (c + 1) * HS if not flip else hx + (wpad - 1 - c) * HS
+    return x, hy + (HAND_KNOT[1] + 1.5) * HS
+
+
+def arc_len(pts):
+    out = [0.0]
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]): out.append(out[-1] + math.hypot(x1 - x0, y1 - y0))
+    return out
+
+
+def point_at(pts, cum, u):
+    s = u * cum[-1]
+    i = max(0, min(len(pts) - 2, int(np.searchsorted(cum, s)) - 1))
+    seg = max(1e-6, cum[i + 1] - cum[i]); f = (s - cum[i]) / seg
+    return lerp(pts[i][0], pts[i + 1][0], f), lerp(pts[i][1], pts[i + 1][1], f)
+
+
+def red_thread(img, d, pts, a=1.0, w=2, glow_a=0.28, pulses=()):
+    """红线：pts 是屏幕坐标的折线；pulses = [(沿线位置 0..1, 亮度), ...] 是沿线跑的亮光"""
+    if len(pts) < 2 or a <= 0: return
+    pts = [(float(x), float(y)) for x, y in pts]
+    m = Image.new('L', (W, H)); md = ImageDraw.Draw(m)
+    md.line(pts, fill=int(255 * glow_a), width=w + 6, joint='curve')
+    md2 = Image.new('L', (W, H)); ImageDraw.Draw(md2).line(pts, fill=255, width=w, joint='curve')
+    if a < 1:
+        m = Image.fromarray((np.array(m) * (BAYER_A < a)).astype(np.uint8))
+        md2 = Image.fromarray(((np.array(md2) > 0) & (BAYER_A < a)).astype(np.uint8) * 255)
+    img.paste((255, 70, 104), (0, 0, W, H), m)
+    img.paste((224, 40, 64), (0, 0, W, H), md2)
+    if a >= 1: d.line([(x, y - 1) for x, y in pts], fill=(255, 132, 150), width=1)
+    if pulses:
+        cum = arc_len(pts)
+        for u, b in pulses:
+            if not 0 <= u <= 1 or b <= 0: continue
+            x, y = point_at(pts, cum, u)
+            glow(img, x, y, 16, (255, 214, 200), 0.65 * b)
+            d.rectangle([x - 1, y - 1, x + 1, y + 1], fill=(255, 250, 240))
+
+
+BAYER_A = pix.BAYER
+
+
+def bokeh_bg(img, d, T, warm=True):
+    top, bot = ((22, 14, 44), (58, 32, 80)) if warm else ((14, 16, 46), (36, 34, 86))
+    sky(img, ((0, top), (1, bot)), 0, H)
+    for i in range(14):
+        r = rng(i + 200)
+        x = (r.uniform(0, W) + T * r.uniform(-8, 8)) % (W + 60) - 30
+        y = r.uniform(10, H - 10) + 5 * math.sin(T * 0.7 + i)
+        glow(img, x, y, r.uniform(16, 40), r.choice([(255, 170, 120), (255, 120, 160), (150, 170, 255), (255, 220, 150)]), 0.3)
+    stars(d, T, H, 0.6, 60)
+
+
+def closeup(img, d, lt, T, who, pluck_t, arrive=False):
+    """小指特写。她的手在左边，红线往右飞出画面；他的手在右边，红线从左边飞进来"""
+    girl = who == 'girl'
+    bokeh_bg(img, d, T, girl)
+    hand = hand_img(YEL, YEL_S) if girl else hand_img(BLU, BLU_S, True)
+    fl = 2 * math.sin(T * 2.2)
+    hx = 52 if girl else W - 52 - hand.width
+    hy = 100 + fl
+    ax, ay = knot_xy(hx, hy, not girl)
+    k = lt - pluck_t
+    tremble = 1 + 3 * clamp(1 - abs(k) / 0.4) if k < 0.4 else 1
+    n = 60
+    pts = []
+    for i in range(n + 1):
+        f = i / n
+        x = lerp(ax, W + 20, f) if girl else lerp(-20, ax, f)
+        dist = abs(x - ax)
+        y = ay - dist * 0.2 + tremble * 2.2 * math.sin(dist * 0.06 - T * 7) * min(1, dist / 40)
+        pts.append((x, y))
+    pulses = []
+    if 0 <= k < 0.5:
+        u = k / 0.35
+        pulses = [(u if girl else 1 - u, 1.0)] if not arrive else [(clamp(k / 0.3), 1.0)]
+    red_thread(img, d, pts, 1.0, 3, 0.3, pulses)
+    img.paste(hand, (int(hx), int(hy)), hand)
+    glow(img, ax, ay, 18, (255, 120, 140), 0.25 + 0.25 * clamp(1 - abs(k) / 0.5))
+    for i in range(8):
+        f = (T * 0.3 + i / 8) % 1
+        x = hx + 80 + 40 * math.sin(i * 2.1 + T); y = hy + 30 - f * 130
+        twinkle(d, int(x), int(y), f, (255, 230, 236), 2)
+    if arrive and k > 0.3:
+        f = clamp((k - 0.3) / 0.6)
+        put(img, 'heart', ax + 4, ay - 14 - 20 * f, 2 if f < 0.2 else 1, alpha=1 - f * 0.5)
+
+
+def catmull(ctrl, n=8):
+    P = [ctrl[0]] + list(ctrl) + [ctrl[-1]]
+    out = []
+    for i in range(1, len(P) - 2):
+        p0, p1, p2, p3 = P[i - 1], P[i], P[i + 1], P[i + 2]
+        for k in range(n):
+            t = k / n
+            out.append(tuple(0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - e) * t * t + (-a + 3 * b - 3 * c + e) * t ** 3)
+                             for a, b, c, e in zip(p0, p1, p2, p3)))
+    out.append(tuple(ctrl[-1]))
+    return out
+
+
+@lru_cache(None)
+def flight_path():
+    """红线在城市里走的路线（近景坐标）：出她的窗、翻过楼顶、贴着电线、越过大桥、在月亮前绕一个心形的圈，再进他的窗"""
+    ctrl = [(150, 164), (232, 126), (330, 70), (430, 94), (520, 150), (610, 130), (700, 114), (820, 106), (900, 94), (962, 92)]
+    heart = [(1010 + x * 1.5, 66 + y * 1.5) for x, y in (pix.HEART_PTS[32:] + pix.HEART_PTS[:33])][::3]
+    ctrl += heart + [(1070, 118), (1170, 130), (1280, 140), (1376, 146)]
+    return catmull(ctrl, 8)
+
+
+@lru_cache(None)
+def path_y_table():
+    pts = flight_path()
+    xs = np.array([p[0] for p in pts]); ys = np.array([p[1] for p in pts])
+    out = np.full(1800, 130.0)
+    for x in range(1800):
+        m = np.abs(xs - x) < 70
+        if m.any(): out[x] = ys[m].mean()
+    return out
+
+
+def mono_spline(keys, t):
+    """单调三次插值（Fritsch–Carlson），镜头位置不会来回晃"""
+    ts = [k[0] for k in keys]; vs = [k[1] for k in keys]
+    if t <= ts[0]: return vs[0]
+    n = len(ts)
+    sec = [(vs[i + 1] - vs[i]) / (ts[i + 1] - ts[i]) for i in range(n - 1)]
+    m = [0.0] + [0.0 if sec[i - 1] * sec[i] <= 0 else 2 / (1 / sec[i - 1] + 1 / sec[i]) for i in range(1, n - 1)] + [sec[-1]]
+    if t >= ts[-1]: return vs[-1] + m[-1] * (t - ts[-1])
+    i = max(j for j in range(n - 1) if ts[j] <= t)
+    h = ts[i + 1] - ts[i]; u = (t - ts[i]) / h
+    return ((2 * u ** 3 - 3 * u ** 2 + 1) * vs[i] + (u ** 3 - 2 * u ** 2 + u) * h * m[i]
+            + (-2 * u ** 3 + 3 * u ** 2) * vs[i + 1] + (u ** 3 - u ** 2) * h * m[i + 1])
+
+
+FLIGHT_BLD = [(40, 150, 112, (36, 28, 66), 1), (226, 100, 150, (40, 32, 74), 2), (336, 96, 74, (32, 28, 64), 3),
+              (980, 90, 178, (40, 32, 72), 4), (1088, 100, 100, (34, 28, 66), 5), (1210, 70, 140, (40, 34, 76), 6),
+              (1300, 160, 106, (32, 30, 70), 7)]
+WIN_COLS = [(255, 214, 130), (255, 236, 180), (200, 220, 255), (255, 190, 150)]
+
+
+def near_building(d, x, y, w, col, seed, cam=None):
+    """近景的楼。cam 不为空时，镜头中心已经经过的窗户会一扇扇亮起来"""
+    if x > W + 4 or x + w < -4: return
+    d.rectangle([x, y, x + w, H + 80], fill=col)
+    d.rectangle([x, y, x + w, y + 2], fill=lerpc(col, (120, 110, 170), 0.5))
+    rr = rng(seed)
+    for wy in range(int(y) + 9, H + 40, 14):
+        for wx in range(int(x) + 6, int(x + w) - 8, 13):
+            on = rr.random() < 0.38
+            c = rr.choice(WIN_COLS)
+            late = rr.random()
+            if cam is not None and not on and late < 0.55 and wx < 240 - 60 * late: on = True
+            if wx < -10 or wx > W + 10: continue
+            d.rectangle([wx, wy, wx + 7, wy + 9], fill=c if on else (24, 20, 48))
+            if on and rr.random() < 0.35:
+                d.ellipse([wx + 2, wy + 3, wx + 5, wy + 6], fill=lerpc(c, (40, 24, 50), 0.75))
+                d.rectangle([wx + 1, wy + 6, wx + 6, wy + 9], fill=lerpc(c, (40, 24, 50), 0.75))
+
+
+def flight(img, d, t, T, keys, b1, b2, b3):
+    cam = mono_spline(keys, t)
+    vel = (mono_spline(keys, t + 1 / 30) - cam) * 30
+    cy = (path_y_table()[int(clamp(cam + 240, 0, 1799))] - 130) * 0.45
+    sk = pix.vgrad(W, H + 120, ((0, (8, 8, 30)), (0.5, (30, 22, 74)), (0.8, (84, 48, 120)), (1, (170, 90, 136))), 6)
+    oy = int(clamp(60 + cy * 0.25, 0, 120))
+    img.paste(sk.crop((0, oy, W, oy + H)))
+    stars(d, T, H, 1, 220, int(cam * 0.06), int(cy * 0.1))
+    mx, my = 468 - cam * 0.3, 54 - cy * 0.3
+    glow(img, mx, my, 86, (255, 230, 210), 0.35 + 0.2 * pulse(T, 0.5))
+    moon(d, mx, my, 38, (255, 246, 214))
+    meteor(d, t, 1.0, 420, 10, -160, 50, 0.7)
+    city(img, d, 190 - cy * 0.35, 31, cam * 0.25, (46, 36, 88), (130, 110, 180), 50, 96, 0.3, T)
+    city(img, d, 212 - cy * 0.6, 32, cam * 0.5, (30, 24, 62), (255, 210, 130), 40, 94, 0.4, T)
+
+    def X(x): return x - cam
+
+    def Y(y): return y - cy
+    # 桥下的河、街道
+    d.rectangle([0, Y(234), W, H + 80], fill=(18, 14, 36))
+    rx0, rx1 = X(600), X(980)
+    d.rectangle([rx0, Y(234), rx1, H + 80], fill=(20, 26, 62))
+    for k in range(14):
+        wy = Y(240 + k * 3)
+        xx = rx0 + (k * 37 + t * 20) % max(1, rx1 - rx0)
+        d.line([(xx, wy), (xx + 8, wy)], fill=(110, 110, 170))
+    for k in range(8):
+        f = (t * 0.5 + k / 8) % 1
+        x = lerp(-40, 1500, f) if k % 2 else lerp(1500, -40, f)
+        if 600 < x < 980: continue
+        y = Y(244 + (k % 2) * 8)
+        c = (255, 240, 200) if k % 2 else (255, 90, 90)
+        d.line([(X(x), y), (X(x) - 14 if k % 2 else X(x) + 14, y)], fill=lerpc(c, (18, 14, 36), 0.5))
+    for x0, w, top, col, seed in FLIGHT_BLD:
+        near_building(d, X(x0), Y(top), w, col, seed, cam)
+    # 楼顶的水塔和天线
+    wx = X(260); d.rectangle([wx, Y(128), wx + 18, Y(146)], fill=(40, 32, 74)); d.rectangle([wx + 2, Y(146), wx + 4, Y(150)], fill=(40, 32, 74))
+    d.rectangle([wx + 14, Y(146), wx + 16, Y(150)], fill=(40, 32, 74)); d.polygon([(wx - 2, Y(128)), (wx + 20, Y(128)), (wx + 9, Y(120))], fill=(40, 32, 74))
+    ax_ = X(384); d.line([(ax_, Y(74)), (ax_, Y(44))], fill=(32, 28, 64), width=2)
+    if math.sin(T * 4) > 0: d.rectangle([ax_ - 1, Y(43), ax_ + 1, Y(45)], fill=(255, 80, 80)); glow(img, ax_, Y(42), 6, (255, 80, 80), 0.5)
+    # 她和他的窗
+    for (px, py), col, who in (((150, 164), (255, 214, 120), 'girl'), ((1376, 146), (150, 196, 255), 'boy')):
+        if -20 < X(px) < W + 20: lit_window(img, d, X(px), Y(py), col, T, who)
+    # 电线杆、电线和鸽子
+    for px in (470, 650):
+        d.rectangle([X(px) - 1, Y(116), X(px) + 1, Y(236)], fill=(28, 22, 50)); d.rectangle([X(px) - 6, Y(118), X(px) + 6, Y(120)], fill=(28, 22, 50))
+    wire = [(X(x), Y(120 + 16 * (1 - ((x - 560) / 90) ** 2))) for x in range(470, 651, 6)]
+    d.line(wire, fill=(28, 22, 50))
+    for i, px in enumerate((500, 524, 548, 582, 606)):
+        py = 120 + 16 * (1 - ((px - 560) / 90) ** 2) - 3
+        k = t - (b1 + i * 0.05)
+        if k < 0:
+            d.ellipse([X(px) - 3, Y(py) - 2, X(px) + 3, Y(py) + 2], fill=(150, 150, 176)); d.rectangle([X(px) + 2, Y(py) - 4, X(px) + 4, Y(py) - 2], fill=(130, 130, 160))
+        else:
+            bird(d, int(X(px) - k * (40 + i * 12)), int(Y(py) - k * (90 + i * 10)), T, (190, 190, 214), i)
+    # 大桥和列车
+    if X(980) > -20 and X(600) < W + 20:
+        d.rectangle([X(600), Y(176), X(980), Y(182)], fill=(40, 34, 70))
+        d.line([(X(600), Y(160)), (X(980), Y(160))], fill=(40, 34, 70), width=2)
+        for k in range(0, 380, 20):
+            d.line([(X(600 + k), Y(176)), (X(610 + k), Y(160)), (X(620 + k), Y(176))], fill=(40, 34, 70))
+        for px in (700, 800, 900): d.rectangle([X(px) - 3, Y(182), X(px) + 3, Y(240)], fill=(34, 28, 60))
+        head = 1060 - (t - (b2 - 0.4)) * 620
+        for k in range(5):
+            cx0 = head + k * 48
+            if X(cx0) > W + 10 or X(cx0 + 46) < -10: continue
+            d.rectangle([X(cx0), Y(162), X(cx0 + 45), Y(175)], fill=(200, 206, 220))
+            d.rectangle([X(cx0), Y(171), X(cx0 + 45), Y(172)], fill=(236, 120, 90))
+            for wx2 in range(int(X(cx0)) + 4, int(X(cx0)) + 42, 8): d.rectangle([wx2, Y(165), wx2 + 4, Y(168)], fill=(255, 236, 170))
+        if -60 < X(head) < W + 60: glow(img, X(head), Y(170), 18, (255, 250, 210), 0.5)
+    # 霓虹爱心招牌
+    nx, ny = X(1138), Y(128)
+    if -40 < nx < W + 40:
+        on = t > b3 + 0.25 and (t > b3 + 0.55 or int(t * 20) % 2)
+        d.rectangle([nx - 16, ny - 13, nx + 16, ny + 13], fill=(30, 24, 50))
+        put(img, 'bigheart', nx, ny, 2, tint=(255, 110, 170) if on else (90, 50, 80))
+        if on: glow(img, nx, ny, 34, (255, 110, 170), 0.4)
+    # 红线
+    pts = [(X(x), Y(y)) for x, y in flight_path() if -40 < X(x) < W + 40]
+    lead = []
+    if pts:
+        cum = arc_len(pts)
+        lead = [((t * 0.9 + j / 3) % 1, 0.7) for j in range(3)]
+    red_thread(img, d, pts, 1.0, 2, 0.3, lead)
+    hx, hy = X(1010), Y(66)
+    if abs(t - b3) < 0.6:
+        f = 1 - abs(t - b3) / 0.6
+        glow(img, hx, hy, 40, (255, 150, 170), 0.35 * f)
+        twinkle(d, int(hx + 26), int(hy - 22), (t - b3 + 0.6) / 1.2, (255, 255, 240), 4)
+    # 前景和速度线
+    for i in range(6):
+        fx = i * 300 + 160 - cam * 1.6
+        if -60 < fx < W + 60:
+            for bx, by, r in ((0, 0, 22), (-18, 8, 16), (20, 6, 18)):
+                d.ellipse([fx + bx - r, Y(258) + by - r, fx + bx + r, Y(258) + by + r], fill=(12, 8, 26))
+    if vel > 220:
+        rr = rng(int(t * 30))
+        for i in range(int((vel - 220) / 25)):
+            y = rr.uniform(8, H - 8); x = rr.uniform(-20, W)
+            d.line([(x, y), (x + vel * 0.07, y)], fill=(210, 200, 250))
+
+
 def s_intro(img, d, lt, dur, T, A):
     h0, h1, h2, h3 = bar_at(0, 0.63), bar_at(1, 4.54), bar_at(2, 8.48), bar_at(3, 12.4)
-    if lt < h0:
-        d.rectangle([0, 0, W, H], fill=(4, 3, 12))
-        f = lt / h0
-        glow(img, 240, 100, 8 + 30 * f, (255, 200, 220), 0.35 * f)
-        twinkle(d, 240, 100, 0.5, (255, 250, 230), int(1 + 5 * f * f))
-        return
-    cam = ease(span(lt, h1 + 0.3, h2 + 0.4))
-    oy = 150 * cam; sy = 150 - oy
-    sk = pix.vgrad(W, H + 150, ((0, (6, 6, 26)), (0.45, (26, 18, 68)), (0.78, (78, 44, 118)), (1, (168, 86, 132))), 6)
-    img.paste(sk.crop((0, int(oy), W, int(oy) + H)), (0, 0))
-    reveal = clamp((lt - h0) / 0.9)
-    stars(d, T, H, reveal, 220, 0, -int(oy * 0.5))
-    mx, my = 404, 46 - oy * 0.2
-    glow(img, mx, my, 46, (255, 230, 200), 0.3)
-    moon(d, mx, my, 17)
-    for t0, x0, y0, dx, dy in [(h0 + 2.1, 300, 10, -170, 60), (h1 - 0.4, 120, 20, 130, 50), (h2 + 1.6, 470, 30, -150, 46),
-                               (h3 + 0.6, 260, 8, -140, 50), (h3 + 2.4, 160, 14, 110, 40)]:
-        meteor(d, lt, t0, x0, y0 - (0 if t0 > h2 else oy), dx, dy, 0.8)
-
-    # 城市从下面升上来
-    if sy < H:
-        dim = ease(span(lt, h3 + 0.5, dur - 0.8)) * 0.9
-        city_night(img, d, sy, T, lt, dim)
-        for (wx, wy), col, who, k in ((WIN_A, (255, 214, 120), 'girl', 0), (WIN_B, (150, 196, 255), 'boy', 1)):
-            land = h2 - 0.05 + k * 0.12
-            if lt > land:
-                f = lt - land
-                lit_window(img, d, wx, wy + sy, col, T, who)
-                if f < 0.6:
-                    r = 4 + f * 70
-                    d.ellipse([wx - r, wy + sy - r * 0.7, wx + r, wy + sy + r * 0.7], outline=lerpc(col, (40, 30, 70), f / 0.6))
-                    glow(img, wx, wy + sy, 40, col, 0.6 * (1 - f / 0.6))
-
-    # 心：第一个和弦砸下来，第二小节裂成两半，飞进两扇窗
-    hx, hy = 240, 100 - oy
-    if lt < h1 + 0.35:
-        k = lt - h0
-        r = 24 * eback(k / 0.4) + 2 * pulse(T, 0.25)
-        glow(img, hx, hy, 70, (255, 170, 200), 0.35 + 0.15 * pulse(T, 0.4))
-        if lt < h1:
-            heart_at(img, hx, hy, r)
-        else:
-            sep = eout((lt - h1) / 0.35) * 6
-            heart_at(img, hx - sep, hy, 24, 0); heart_at(img, hx + sep, hy, 24, 1)
-            if lt - h1 < 0.12: darken(img, 0.5, (255, 250, 240))
+    q = (h1 - h0) / 4
+    b1, b2, b3 = h0 + q, h0 + 2 * q, h0 + 3 * q
+    go = h0 + 0.15
+    keys = [(go, 0.0), (b1, 230.0), (b2, 520.0), (b3 - 0.3, 730.0), (b3 + 0.3, 812.0), (h1, 1060.0)]
+    wide_t = h1 + 0.56
+    if lt < go:
+        closeup(img, d, lt, T, 'girl', h0)
+    elif lt < h1:
+        flight(img, d, lt, T, keys, b1, b2, b3)
+        if lt - go < 0.2:
+            rr = rng(int(lt * 30))
+            for i in range(26):
+                y = rr.uniform(0, H); x = rr.uniform(-40, W)
+                d.line([(x, y), (x + 60, y)], fill=(255, 236, 240))
+    elif lt < wide_t:
+        closeup(img, d, lt, T, 'boy', h1, True)
     else:
-        f = span(lt, h1 + 0.35, h2 - 0.05)
-        for k, (ex, ey) in enumerate((WIN_A, WIN_B)):
-            fk = span(lt, h1 + 0.35 + k * 0.06, h2 - 0.05 + k * 0.12)
-            if fk >= 1: continue
-            sgn = -1 if k == 0 else 1
-            p0 = (hx + sgn * 6, 100); p1 = (240 + sgn * 210, 40); p2 = (ex, ey + 150)
-            u = ease(fk)
-            wx = (1 - u) ** 2 * p0[0] + 2 * u * (1 - u) * p1[0] + u * u * p2[0]
-            wy = (1 - u) ** 2 * p0[1] + 2 * u * (1 - u) * p1[1] + u * u * p2[1] - oy
-            for j in range(10):
-                uj = max(0, u - j * 0.018)
-                tx = (1 - uj) ** 2 * p0[0] + 2 * uj * (1 - uj) * p1[0] + uj * uj * p2[0]
-                ty = (1 - uj) ** 2 * p0[1] + 2 * uj * (1 - uj) * p1[1] + uj * uj * p2[1] - oy
-                if j % 2 == 0: d.point((tx + math.sin(j + lt * 9) * 2, ty), fill=lerpc(YEL_L if k == 0 else BLU_L, (60, 40, 90), j / 10))
-            heart_at(img, wx, wy, lerp(24, 5, u), k)
-            glow(img, wx, wy, 18, YEL if k == 0 else BLU_L, 0.35)
+        intro_wide(img, d, lt, dur, T, h1, h2, h3, wide_t)
+    for t0, a0, dd in ((h0, 0.85, 0.18), (h1, 0.6, 0.15), (wide_t, 0.5, 0.2)):
+        if 0 <= lt - t0 < dd: darken(img, a0 * (1 - (lt - t0) / dd), (255, 250, 240))
+    shake(img, lt - h0, 4, 0.35)
+    shake(img, lt - h1, 2, 0.2)
 
-    # 前奏小节末尾的三个琶音：三颗星依次闪一下
-    for j, t0 in enumerate((h2 - 0.98, h2 - 0.61, h2 - 0.28)):
-        f = (lt - t0) / 0.5
-        if 0 <= f < 1: twinkle(d, [150, 300, 228][j], int([46, 30, 70][j] - oy * 0.5), f, (255, 250, 230), 5)
 
-    # 片名
+def intro_wide(img, d, lt, dur, T, h1, h2, h3, t_in):
+    sk = pix.vgrad(W, H, ((0, (6, 6, 26)), (0.45, (26, 18, 68)), (0.78, (78, 44, 118)), (1, (168, 86, 132))), 6)
+    img.paste(sk)
+    stars(d, T, H, 1, 220)
+    glow(img, 436, 28, 34, (255, 230, 200), 0.3)
+    moon(d, 436, 28, 12)
+    for t0, x0, y0, dx, dy in [(h2 + 1.6, 470, 30, -150, 46), (h3 + 0.6, 260, 8, -140, 50), (h3 + 2.4, 160, 14, 110, 40)]:
+        meteor(d, lt, t0, x0, y0, dx, dy, 0.8)
+    dim = ease(span(lt, h3 + 0.5, dur - 0.8)) * 0.9
+    city_night(img, d, 0, T, lt, dim)
+    for (wx, wy), col, who in ((WIN_A, (255, 214, 120), 'girl'), (WIN_B, (150, 196, 255), 'boy')):
+        lit_window(img, d, wx, wy, col, T, who)
+    p0, c, p2 = (WIN_A[0] + 5, WIN_A[1] - 4), (240, 64), (WIN_B[0] - 5, WIN_B[1] - 4)
+
+    def bz(u): return ((1 - u) ** 2 * p0[0] + 2 * u * (1 - u) * c[0] + u * u * p2[0], (1 - u) ** 2 * p0[1] + 2 * u * (1 - u) * c[1] + u * u * p2[1])
+    pts = [bz(i / 80) for i in range(81)]
+    merge = h1 + 2 * (h2 - h1) / 4
+    fade = 1 - span(lt, h3 + 0.9, h3 + 2.4)
+    pulses = []
+    for t0 in (h2 - 0.98, h2 - 0.61, h2 - 0.28):
+        k = (lt - t0) / 0.45
+        if 0 <= k < 1: pulses.append((k, 1 - k * 0.5))
+    if lt < t_in + 0.5: pulses.append((clamp((lt - t_in) / 0.5), 1.0))
+    red_thread(img, d, pts, fade, 2, 0.3, pulses)
+    ax, ay = bz(0.5)
+    if lt < merge:
+        f = ease(span(lt, t_in + 0.25, merge))
+        for k, u in ((0, lerp(0, 0.5, f)), (1, lerp(1, 0.5, f))):
+            x, y = bz(u)
+            heart_at(img, x, y, lerp(5, 13, f), k)
+            glow(img, x, y, 14, YEL if k == 0 else BLU_L, 0.35)
+            for j in range(5):
+                uj = (lerp(0, 0.5, max(0, f - j * 0.03)) if k == 0 else lerp(1, 0.5, max(0, f - j * 0.03)))
+                tx, ty = bz(uj)
+                d.point((tx, ty - 3), fill=YEL_L if k == 0 else BLU_L)
+    elif lt < h3:
+        k = lt - merge
+        r = 15 + 2 * pulse(T, 0.3)
+        glow(img, ax, ay, 46, (255, 170, 200), 0.4 + 0.15 * pulse(T, 0.5))
+        heart_at(img, ax, ay, r)
+        if k < 0.5:
+            rr_ = 10 + k * 300
+            d.ellipse([ax - rr_, ay - rr_ * 0.6, ax + rr_, ay + rr_ * 0.6], outline=lerpc((255, 255, 255), (120, 60, 140), k / 0.5), width=2)
+        burst(img, d, k, ax, ay, BURST, 1.4)
+        if k < 0.15: darken(img, 0.55 * (1 - k / 0.15), (255, 250, 240))
+    else:
+        f = ease(span(lt, h3, h3 + 1.2))
+        for k, u in ((0, lerp(0.5, 0, f)), (1, lerp(0.5, 1, f))):
+            if f >= 1: break
+            x, y = bz(u)
+            heart_at(img, x - (1 - f) * (3 if k == 0 else -3) * (f < 0.15), y, lerp(13, 4, f), k)
+        if 0 < lt - h3 - 1.2 < 0.6:
+            for (wx, wy), col in ((WIN_A, YEL), (WIN_B, BLU_L)):
+                rr_ = 4 + (lt - h3 - 1.2) * 60
+                d.ellipse([wx - rr_, wy - rr_ * 0.7, wx + rr_, wy + rr_ * 0.7], outline=col)
     ti = pix.META.get('ti', '')
-    if ti and 172 - oy * 1.6 > -40:
-        ty = 172 - oy * 1.6
-        title(img, ti, 240, ty, 3, lt, h0 + 0.05, 0.07, ((lt - h0 - 1.6) / 0.9) if h0 + 1.6 < lt < h0 + 2.8 else None)
+    if ti and lt < h3:
+        lay = Image.new('RGBA', (W, H))
+        title(lay, ti, 240, 38, 3, lt, t_in + 0.1, 0.07, ((lt - t_in - 1.6) / 0.9) if t_in + 1.6 < lt < t_in + 2.8 else None)
         ar = pix.META.get('ar', '')
-        if ar and lt > h0 + 1.0:
-            n = min(len(ar), int((lt - h0 - 1.0) / 0.08) + 1)
-            text(img, ar[:n] if n < len(ar) else ar, 240, ty + 36, (236, 226, 255), (40, 24, 70))
-    if lt - h0 < 0.5 and lt >= h0:
-        k = lt - h0
-        r = 10 + k * 420
-        d.ellipse([hx - r, hy - r * 0.6, hx + r, hy + r * 0.6], outline=lerpc((255, 255, 255), (120, 60, 140), k / 0.5), width=2)
-    burst(img, d, lt - h0, hx, hy, BURST, 1.5)
-    burst(img, d, lt - h1, hx, hy, BURST[::2], 1.0, 0.6)
-    if 0 <= lt - h0 < 0.18: darken(img, 0.85 * (1 - (lt - h0) / 0.18), (255, 250, 240))
-    shake(img, lt - h0, 4, 0.4)
-    shake(img, lt - h1, 2, 0.25)
+        if ar and lt > t_in + 0.9:
+            n = min(len(ar), int((lt - t_in - 0.9) / 0.08) + 1)
+            text(lay, ar[:n], 240, 74, (236, 226, 255), (40, 24, 70))
+        out = span(lt, h3 - 0.9, h3 - 0.1)
+        if out > 0:
+            a = np.array(lay); a[..., 3] = np.where(BAYER_A < out, 0, a[..., 3]); lay = Image.fromarray(a)
+        img.paste(lay, (0, 0), lay)
 
 
 # ---------------------------------------------------------------- 第 1 句：分屏，两个人都在加班
