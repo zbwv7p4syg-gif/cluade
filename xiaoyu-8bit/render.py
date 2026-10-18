@@ -5,7 +5,7 @@ python3 render.py 小宇.mp3 --lyrics 歌词.lrc [--stills 20,75,140]
 import argparse, math, multiprocessing, os, random, re, shutil, subprocess
 from functools import lru_cache
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 FPS = 24
 W, H = 320, 180
@@ -328,23 +328,160 @@ def road(img, d, lt, top, bot, sunc, field):
 
 
 # ---------------------------------------------------------------- scenes
+# the song opens on a hit every 1/3 s starting at 1/6 s (frames 4, 12, 20, ...); the opening is cut to those hits
+def hit(n): return (1 + 2 * n) / 6
+
+
+_RB = random.Random(5)
+BURST = [(_RB.uniform(0, 2 * math.pi), _RB.uniform(50, 150), i % 3, CONF[i % len(CONF)]) for i in range(40)]
+SPARKS = [(_RB.uniform(0, 2 * math.pi), _RB.uniform(30, 70), 1, CONF[i % len(CONF)]) for i in range(16)]
+SCAN = Image.fromarray(np.tile(np.array([[255], [0]], np.uint8), (H // 2, W)))
+
+
+def burst(img, d, k, cx, cy, parts, life=1.1):
+    if not 0 <= k < life: return
+    u = k / life
+    for ang, sp, kind, col in parts:
+        dist = 12 + sp * (1 - (1 - u) ** 2)
+        x = cx + math.cos(ang) * dist; y = cy + math.sin(ang) * dist * 0.7 + 30 * u * u
+        c = lerpc(col, (24, 20, 50), u)
+        if kind == 0: put(img, 'heart', x, y + 3, 1, tint=col, alpha=1 - u)
+        elif kind == 1: sparkle(d, int(x), int(y), k * 8, c, 2)
+        else: d.rectangle([x, y, x + 1, y + 1], fill=c)
+
+
+def speed_lines(d, t):
+    r = random.Random(int(t * FPS))
+    for i in range(30):
+        a = 2 * math.pi * i / 30 + r.uniform(-0.06, 0.06)
+        r0 = r.uniform(62, 86)
+        d.line([(160 + math.cos(a) * r0 * 1.8, 90 + math.sin(a) * r0), (160 + math.cos(a) * 340, 90 + math.sin(a) * 190)],
+               fill=(255, 255, 255), width=r.choice((1, 1, 2)))
+
+
+def title_img(s, sx, sy, shine=None):
+    t = text_img(s, (255, 222, 96), (90, 30, 70))
+    t = t.resize((t.width * sx, t.height * sy), Image.NEAREST)
+    if shine is not None:
+        band = Image.new('L', t.size, 0); bd = ImageDraw.Draw(band)
+        x = lerp(-t.height - 28, t.width, shine)
+        for x0, w, v in ((x, 28, 120), (x + 9, 10, 255)):
+            bd.polygon([(x0, 0), (x0 + w, 0), (x0 + w + t.height, t.height), (x0 + t.height, t.height)], fill=v)
+        t.paste((255, 255, 236, 255), (0, 0), ImageChops.multiply(band, t.getchannel('A')))
+    return t
+
+
+def jump_in(img, d, name, x, lt, t0, flip, A):
+    f = (lt - t0) * 3  # one beat in the air
+    if f < 0: return
+    if f < 1:
+        y = 152 - 22 * math.sin(math.pi * f) + 44 * (1 - f) ** 3
+    else:
+        y = 152 - (2 if A > 0.75 else 0)
+        g = (f - 1) * 4 / 3
+        if g < 1:
+            c = lerpc((170, 160, 200), (14, 10, 28), g)
+            for s in (-1, 1):
+                ox = x + s * (6 + 8 * g)
+                d.ellipse([ox - 3, 149 - 2 * g, ox + 3, 152], fill=c)
+        h = (f - 1) / 1.8
+        if h < 1: put(img, 'heart', x, 118 - 16 * h, 1, alpha=1 - h)
+    put(img, name, x, y, 2, flip=flip)
+
+
+def flash(img, k, a0, dur):
+    if 0 <= k < dur: darken(img, a0 * (1 - k / dur), (255, 255, 255))
+
+
+def shake(img, k, amp, dur):
+    if not 0 <= k < dur: return
+    a = amp * (1 - k / dur)
+    dx, dy = round(a * math.sin(k * 97)), round(a * math.cos(k * 71))
+    if dx or dy:
+        src = img.copy()
+        img.paste((8, 8, 30), (0, 0, W, H))
+        img.paste(src, (dx, dy))
+
+
+def crt_on(img, d, lt, t_on):
+    f = lt / t_on
+    if f < 0.6:
+        d.rectangle([0, 0, W, H], fill=(0, 0, 0))
+        w = 160 * ease(f / 0.6) + 2
+        tfill(img, 'rectangle', [160 - w, 86, 160 + w, 93], (150, 200, 255), 0.45)
+        d.rectangle([160 - w, 89, 160 + w, 90], fill=(240, 250, 255))
+    else:
+        hh = int(90 * ease((f - 0.6) / 0.4))
+        darken(img, 0.85, (255, 255, 255))
+        if hh < 89:
+            d.rectangle([0, 0, W, 89 - hh], fill=(0, 0, 0))
+            d.rectangle([0, 90 + hh, W, H], fill=(0, 0, 0))
+
+
 def s_intro(img, d, lt, dur, T, A):
     sky(d, (8, 8, 30), (72, 42, 112), 0, 140)
     stars(d, T)
+    if lt >= hit(1):
+        a = (0.1 + 0.22 * A) * ease((lt - hit(1)) / 0.15)
+        for k in range(8):
+            ang = k * math.pi / 4 + lt * 0.3
+            tfill(img, 'polygon', [(160, 52), (160 + 420 * math.cos(ang - 0.17), 52 + 420 * math.sin(ang - 0.17)),
+                                   (160 + 420 * math.cos(ang + 0.17), 52 + 420 * math.sin(ang + 0.17))], (255, 110, 190), a)
     moon(d, 262, 32, 14)
-    meteor(d, lt, 2.0, 60, 10, 90, 40)
-    meteor(d, lt, 5.6, 250, 60, -80, 35)
+    for t0, x0, y0, dx, dy in [(hit(5), 300, 4, -150, 60), (hit(5) + 0.1, 230, 0, -130, 55), (hit(5) + 0.22, 140, 8, -110, 50),
+                               (3.6, 60, 10, 90, 40), (5.6, 250, 60, -80, 35)]:
+        meteor(d, lt, t0, x0, y0, dx, dy, 0.7)
     city(d, 140, 3, T * 3, (32, 26, 64), (250, 210, 120), 30, 70)
     city(d, 152, 5, T * 8, (18, 14, 36), (255, 180, 90), 20, 45)
     d.rectangle([0, 152, W, H], fill=(14, 10, 28))
-    a = ease(lt / 1.2)
-    bigtext(img, META.get('ti', ''), 160, 52 + int(2 * math.sin(lt * 3)), 4, (255, 222, 96), (90, 30, 70), a)
-    bigtext(img, META.get('ar', ''), 160, 92, 1, (220, 220, 255), (30, 20, 60), ease((lt - 0.8) / 1))
-    if lt > 2:
-        on = (int(lt * 2) % 2 == 0) if lt < 8.6 else (int(lt * 14) % 2 == 0)
-        if on: bigtext(img, 'PRESS START', 160, 126, 1, (255, 255, 255), (40, 30, 80))
-        put(img, 'heart', 104, 132, 1)
-        put(img, 'heart', 216, 132, 1)
+
+    # the title zooms in from huge on the first hit and lands on the second
+    ti = META.get('ti', '')
+    if hit(0) <= lt < hit(1):
+        speed_lines(d, lt)
+        f = (lt - hit(0)) / (hit(1) - hit(0))
+        s = 4 + round(7 * (1 - f * f))
+        t = title_img(ti, s, s)
+        img.paste(t, (int(160 - t.width / 2), int(52 - t.height / 2)), t)
+    elif lt >= hit(1):
+        k = lt - hit(1); nf = round(k * FPS)
+        sx, sy = (5, 3) if nf == 0 else (4, 5) if nf == 1 else (4, 4)
+        t = title_img(ti, sx, sy, (lt - hit(4)) / (hit(5) - hit(4)) if hit(4) <= lt < hit(5) else None)
+        bob = int(2 * math.sin((k - 0.4) * 3)) if k > 0.4 else 0
+        img.paste(t, (int(160 - t.width / 2), 92 + bob - t.height), t)
+        if k < 0.45:
+            r = 8 + k * 300
+            d.ellipse([160 - r, 52 - r * 0.6, 160 + r, 52 + r * 0.6], outline=lerpc((255, 255, 255), (255, 110, 190), k / 0.45), width=2)
+        burst(img, d, k, 160, 52, BURST)
+
+    ar = META.get('ar', '')
+    if lt >= hit(4) and ar:
+        n = min(len(ar), int((lt - hit(4)) / 0.06) + 1)
+        full = text_img(ar, (220, 220, 255), (30, 20, 60)); part = text_img(ar[:n], (220, 220, 255), (30, 20, 60))
+        img.paste(part, (int(160 - full.width / 2), 82), part)
+    jump_in(img, d, 'boy', 54, lt, hit(2), False, A)
+    jump_in(img, d, 'girl', 266, lt, hit(3), True, A)
+
+    if lt >= hit(5):
+        k = lt - hit(5); nf = round(k * FPS)
+        on = (int(k * 1.5) % 2 == 0) if lt < 8.6 else (int(lt * 14) % 2 == 0)
+        if nf < 2:
+            bigtext(img, 'PRESS START', 160, 126, 2, (255, 255, 255), (255, 110, 190))
+        else:
+            if on: bigtext(img, 'PRESS START', 160, 126, 1, (255, 255, 255), (40, 30, 80))
+            hs = 2 if nf < 5 else 1
+            put(img, 'heart', 104, 132, hs); put(img, 'heart', 216, 132, hs)
+        if k < 0.35:
+            r = 10 + k * 220
+            d.ellipse([160 - r * 1.6, 126 - r * 0.4, 160 + r * 1.6, 126 + r * 0.4], outline=lerpc((255, 255, 255), (90, 60, 140), k / 0.35))
+        burst(img, d, k, 160, 126, SPARKS, 0.8)
+
+    if lt < 0.6: img.paste((0, 0, 0), (0, 0, W, H), SCAN.point(lambda v: int(v * 0.35 * (1 - lt / 0.6))))
+    flash(img, lt - hit(0), 0.6, 0.12)
+    flash(img, lt - hit(1), 0.75, 0.15)
+    shake(img, lt - hit(1), 4, 0.35)
+    shake(img, lt - hit(5), 2, 0.2)
+    if lt < hit(0): crt_on(img, d, lt, hit(0))
 
 
 def s_meet0(img, d, lt, dur, T, A):
@@ -1225,7 +1362,6 @@ def frame(fi):
         if ply: dialog(prev, pd, *ply)
         mask = BAYER < (lt / 0.45)
         a = np.where(mask[..., None], a, np.asarray(prev))
-    if T < 0.6: a = (a * (T / 0.6)).astype(np.uint8)
     return a
 
 
