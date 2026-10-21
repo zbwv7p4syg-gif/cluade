@@ -19,6 +19,7 @@
 | `sc_end.py` | 第二、三段副歌，两段间奏，天亮的结尾和片尾 |
 | `scenes.py` | 分镜表：每句歌词对应哪个镜头、用什么转场 |
 | `render.py` | 读歌词、分析音乐、排镜头、转场和字幕、分块并行编码、合成音乐 |
+| `cover.py` | 竖屏封面：雨夜路口，他站在路灯下低头看手机，头顶冒出一颗青绿色的心；旁边是打着左转灯的小车，楼上挂着竖排的"左转灯"霓虹招牌，红灯旁的绿色左转箭头亮着。画在 270×480 的画布上，放大 4 倍到 1080×1920 |
 
 ## 分镜
 
@@ -46,6 +47,7 @@ pip install pillow numpy
 python3 render.py /path/to/左转灯.mp3 --lyrics 你的歌词.lrc                      # -> build/左转灯_像素MV.mp4
 python3 render.py /path/to/左转灯.mp3 --lyrics 你的歌词.lrc --stills 8,67,105    # 抽帧检查，输出到 build/stills/
 python3 render.py /path/to/左转灯.mp3 --lyrics 你的歌词.lrc --range 0,20         # 只渲染一段带声音的预览
+python3 cover.py --lyrics 你的歌词.lrc                                           # -> build/左转灯_封面.png，1080×1920 竖屏封面
 ```
 
 默认用 4 个进程，各渲染一段连续的帧，最后不重新编码直接拼接，再合成音乐。用 `--jobs` 可以改进程数。
