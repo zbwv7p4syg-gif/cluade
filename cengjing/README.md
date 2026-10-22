@@ -21,6 +21,7 @@
 | `sc_d.py` | 第二段副歌和片尾：楼顶烟花、褪色的合照、八音盒、天亮的码头、孔明灯、心形灯、河的两岸、片名重现 |
 | `scenes.py` | 分镜表：每句歌词对应哪个镜头、用什么转场 |
 | `render.py` | 读歌词、分析音乐、排镜头、转场和字幕、分块并行编码、合成音乐 |
+| `cover.py` | 竖屏封面：黄昏的山坡上，他和她背对着我们站在落日两边，牵着的红线在中间断开；天上一颗红心裂成两半，片名分两行落在天上，风筝挂在大树的枝头。画在 270×480 的画布上，放大 4 倍到 1080×1920 |
 
 ## 分镜
 
@@ -57,6 +58,7 @@ pip install pillow numpy
 python3 render.py /path/to/曾经是情侣.mp3 --lyrics 你的歌词.lrc                      # -> build/曾经是情侣_像素MV.mp4
 python3 render.py /path/to/曾经是情侣.mp3 --lyrics 你的歌词.lrc --stills 8,67,105    # 抽帧检查，输出到 build/stills/
 python3 render.py /path/to/曾经是情侣.mp3 --lyrics 你的歌词.lrc --range 0,20         # 只渲染一段带声音的预览
+python3 cover.py --lyrics 你的歌词.lrc                                             # -> build/曾经是情侣_封面.png，1080×1920 竖屏封面
 ```
 
 默认用 4 个进程，各渲染一段连续的帧，最后不重新编码直接拼接，再合成音乐。用 `--jobs` 可以改进程数。
