@@ -22,6 +22,7 @@
 | `sc_d.py` | 桥段、最后一段副歌和片尾：长椅、手电与萤火、黄昏站台、褪色的照片、风暴、特写、坠落、碎掉的钟、极光、接住和放手、连砸的片名、天亮、金色补好的片名 |
 | `scenes.py` | 分镜表：每句歌词对应哪个镜头、用什么转场 |
 | `render.py` | 读歌词、分析音乐、排镜头、转场和字幕、分块并行编码、合成音乐 |
+| `cover.py` | 竖屏封面：下雪的夜里挂着极光，像素方块拼成的片名中间裂开一道发亮的缝；她穿红大衣站在积雪的秃树下背对着我们，北风缩在半空难过地看着一片心形红叶被吹向她，近处的他伸手去够。画在 270×480 的画布上，放大 4 倍到 1080×1920 |
 
 ## 重新渲染
 
@@ -32,6 +33,7 @@ pip install pillow numpy
 python3 render.py /path/to/爱错.mp3 --lyrics 你的歌词.lrc                     # -> build/爱错_像素MV.mp4
 python3 render.py /path/to/爱错.mp3 --lyrics 你的歌词.lrc --stills 3,60,140   # 抽帧检查，输出到 build/stills/
 python3 render.py /path/to/爱错.mp3 --lyrics 你的歌词.lrc --range 0,20        # 只渲染一段带声音的预览
+python3 cover.py --lyrics 你的歌词.lrc                                    # -> build/爱错_封面.png，1080×1920 竖屏封面
 ```
 
 默认用 4 个进程，各渲染一段连续的帧，最后不重新编码直接拼接，再合成音乐。用 `--jobs` 可以改进程数。
