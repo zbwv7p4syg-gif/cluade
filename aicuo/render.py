@@ -3,7 +3,10 @@
 从 lixiang/render.py 改来：字幕下面是一道风，一片心形小红叶跟着演唱进度被吹向右边；括号里的和声用冰蓝色单独排一行，
 整句都是和声时就放在主字幕的位置。唱完以后字幕只多停两秒，长间奏里不会一直挂着。
 
-python3 render.py 歌曲.mp3 --lyrics 歌词.lrc [--stills 3,60,140]
+加 --vertical 输出 1080×1920 的竖屏版：上面是片名，中间嵌着放大 2 倍的原画面，下面用整屏宽度的大字幕，
+背景是当前画面放大成的马赛克，最底下一条小红叶走过的全曲进度条。
+
+python3 render.py 歌曲.mp3 --lyrics 歌词.lrc [--stills 3,60,140] [--vertical]
 """
 import argparse, math, multiprocessing, os, re, shutil, subprocess
 import numpy as np
@@ -179,7 +182,8 @@ def sub_line(img, d, txt, lt, dur, T, y, base, hi, leaf=True):
     chars = list(txt)
     ws = [FONT.getlength(c) for c in chars]
     total = sum(ws)
-    x0 = W / 2 - total / 2
+    cw = img.width
+    x0 = cw / 2 - total / 2
     out = clamp((lt - (dur - 0.3)) / 0.3)
     if out >= 1: return
     span_ = clamp(lt / 0.35)
@@ -190,7 +194,7 @@ def sub_line(img, d, txt, lt, dur, T, y, base, hi, leaf=True):
         ys = np.arange(y - 13, y + 16)
         vy = np.clip(1 - np.abs(ys - y - 1) / 14, 0, 1) ** 0.6
         a = 0.5 * span_ * (1 - out) * vy[:, None] * edge[None, :]
-        pix.blend_box(img, (max(0, x_a), y - 13, min(W, x_b), y + 16), (10, 10, 26), a[:, max(0, -x_a):a.shape[1] - max(0, x_b - W)])
+        pix.blend_box(img, (max(0, x_a), y - 13, min(cw, x_b), y + 16), (10, 10, 26), a[:, max(0, -x_a):a.shape[1] - max(0, x_b - cw)])
     n = len([c for c in chars if c.strip()])
     sing = sing_time(txt, dur + 2.2)
     prog = clamp((lt - 0.1) / sing)
@@ -208,7 +212,9 @@ def sub_line(img, d, txt, lt, dur, T, y, base, hi, leaf=True):
                 for j in range(2):
                     k = (T * 1.6 + j / 2) % 1
                     wx = tx - 6 - k * 14
-                    pix.tfill(img, 'line', [(wx, ry - 4 + j * 3), (wx + 5, ry - 4 + j * 3)], (230, 240, 255), (1 - k) * (1 - out) * 0.9)
+                    a = (1 - k) * (1 - out) * 0.9                  # 越往后越淡：按点阵隔点画
+                    for px in range(int(wx), int(wx) + 6):
+                        if pix._B4[(ry - 4 + j * 3) % 4, px % 4] < a: d.point((px, ry - 4 + j * 3), fill=(230, 240, 255))
     # 先贴所有字的描边和投影，再贴字本身，免得后一个字的描边压住前一个字（比如 O 被压成 C）
     x = x0; k_ch = 0; layers = []
     for i, ch in enumerate(chars):
@@ -253,7 +259,8 @@ def lyric_at(T):
     return LINES[cur][1], T - LINES[cur][0], nxt - LINES[cur][0]
 
 
-def frame(fi):
+def scene_frame(fi):
+    """一帧画面（含转场，不含字幕），返回 (图, 这一镜的函数)"""
     T = fi / FPS
     i = scene_at(T)
     t0, fn = SCHED[i]
@@ -270,19 +277,67 @@ def frame(fi):
             prev = draw_scene(i - 1, T)
             m = tr_mask(kind, f, fn)
             img = Image.fromarray(np.where(m[..., None], np.asarray(img), np.asarray(prev)))
+    return img, fn
+
+
+def frame(fi):
+    img, fn = scene_frame(fi)
+    T = fi / FPS
     d = ImageDraw.Draw(img); d.fontmode = '1'
     ly = lyric_at(T)
     if ly and not getattr(fn, 'no_sub', False): subtitle(img, d, *ly, T, getattr(fn, 'sub_y', 248))
     return np.asarray(img)
 
 
+# ---------------------------------------------------------------- 竖屏版
+VW, VH = 270, 480                 # 竖屏的像素画布，放大 4 倍到 1080×1920
+INSET = (15, 150)                 # 原画面（放大 2 倍）嵌在画布上的左上角，占 240×135 格
+VERTICAL = False
+
+
+def vframe(fi):
+    """竖屏的一帧：马赛克背景、片名、嵌进去的原画面、大字幕、全曲进度条，返回 1920×1080×3 的数组"""
+    scene, fn = scene_frame(fi)
+    T = fi / FPS
+    # 背景：取原画面中间一条竖的，缩成 18×32 的马赛克再铺满，压暗
+    cw = round(H * VW / VH)
+    mos = scene.crop(((W - cw) // 2, 0, (W + cw) // 2, H)).resize((18, 32), Image.BOX).resize((VW, VH), Image.NEAREST)
+    a = np.asarray(mos, float) * 0.26 + np.array((10, 10, 28)) * 0.74
+    can = Image.fromarray(a.astype(np.uint8)); d = ImageDraw.Draw(can); d.fontmode = '1'
+    # 片名和歌手
+    ttl = props.title_str()
+    props.big_text(can, ttl, VW / 2, 74, 4, top=(255, 150, 150), bot=(214, 40, 62), line=(120, 18, 40), out=(34, 8, 24))
+    ar = props.artist_str()
+    if ar: pix.text(can, ar, VW / 2, 122, col=(236, 226, 255))
+    motifs.mini_leaf(can, VW / 2 + 52 + 3 * math.sin(T * 1.3), 44 + 2 * math.sin(T * 2), T)
+    # 原画面的相框
+    x0, y0 = INSET
+    d.rectangle([x0 - 3, y0 - 3, x0 + 242, y0 + 137], fill=(8, 6, 18))
+    d.rectangle([x0 - 2, y0 - 2, x0 + 241, y0 + 136], outline=(236, 226, 214))
+    # 大字幕
+    ly = lyric_at(T)
+    if ly and not getattr(fn, 'no_sub', False): subtitle(can, d, *ly, T, 344)
+    # 全曲进度：一道虚线，小红叶走到哪里就是唱到哪里
+    py = 424
+    for x in range(30, VW - 30, 3): d.point((x, py), fill=(90, 100, 150))
+    px = lerp(30, VW - 30, clamp(T / DUR))
+    d.line([(30, py), (px, py)], fill=(236, 120, 130))
+    motifs.mini_leaf(can, px, py - 1 + round(math.sin(T * 5)), T)
+    pix.text(can, '· 像 素 M V ·', VW / 2, 456, col=(200, 196, 230), font=pix.FONT_S, shadow=False)
+    out = np.asarray(can).repeat(4, 0).repeat(4, 1).copy()
+    out[y0 * 4:y0 * 4 + H * 2, x0 * 4:x0 * 4 + W * 2] = np.asarray(scene).repeat(2, 0).repeat(2, 1)
+    return out
+
+
 def render_chunk(job):
     lo, hi, path = job
-    p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-',
-                          '-vf', f'scale={W * SC}:{H * SC}:flags=neighbor,format=yuv420p', '-c:v', 'libx264', '-preset', 'medium',
+    size, vf, fr = ((f'{VW * 4}x{VH * 4}', 'format=yuv420p', vframe) if VERTICAL else
+                    (f'{W}x{H}', f'scale={W * SC}:{H * SC}:flags=neighbor,format=yuv420p', frame))
+    p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', size, '-r', str(FPS), '-i', '-',
+                          '-vf', vf, '-c:v', 'libx264', '-preset', 'medium',
                           '-tune', 'animation', '-crf', '20', '-threads', '2', path], stdin=subprocess.PIPE)
     for fi in range(lo, hi):
-        p.stdin.write(np.ascontiguousarray(frame(fi)).tobytes())
+        p.stdin.write(np.ascontiguousarray(fr(fi)).tobytes())
     p.stdin.close()
     if p.wait(): raise RuntimeError(f'ffmpeg failed on frames {lo}-{hi}')
     return path
@@ -292,18 +347,23 @@ def main():
     ap = argparse.ArgumentParser(description='爱错 · 像素 MV')
     ap.add_argument('song', help='歌曲音频，例如 爱错.mp3')
     ap.add_argument('--lyrics', required=True, help='对应的 .lrc 歌词')
-    ap.add_argument('-o', '--out', default=os.path.join(BUILD, '爱错_像素MV.mp4'))
+    ap.add_argument('-o', '--out', help='输出文件，默认 build/爱错_像素MV.mp4（竖屏版是 build/爱错_像素MV_竖屏.mp4）')
     ap.add_argument('--jobs', type=int, default=min(4, os.cpu_count() or 1), help='并行渲染的进程数')
     ap.add_argument('--stills', help='只抽帧检查：逗号分隔的秒数，输出到 build/stills/')
     ap.add_argument('--range', help='只渲染一段，例如 0,20（秒），输出无声的预览')
+    ap.add_argument('--vertical', action='store_true', help='输出 1080×1920 的竖屏版')
     args = ap.parse_args()
+    global VERTICAL
+    VERTICAL = args.vertical
+    args.out = args.out or os.path.join(BUILD, '爱错_像素MV_竖屏.mp4' if VERTICAL else '爱错_像素MV.mp4')
     load(args.song, args.lyrics)
 
     if args.stills:
         out = os.path.join(BUILD, 'stills'); os.makedirs(out, exist_ok=True)
         for t in map(float, args.stills.split(',')):
-            path = os.path.join(out, f'{t:07.2f}.png')
-            Image.fromarray(frame(int(round(t * FPS)))).resize((W * 2, H * 2), Image.NEAREST).save(path)
+            path = os.path.join(out, f'{t:07.2f}{"_v" if VERTICAL else ""}.png')
+            if VERTICAL: Image.fromarray(vframe(int(round(t * FPS)))).resize((VW * 2, VH * 2), Image.BOX).save(path)
+            else: Image.fromarray(frame(int(round(t * FPS)))).resize((W * 2, H * 2), Image.NEAREST).save(path)
             print(path)
         return
 
@@ -320,7 +380,7 @@ def main():
         f.writelines(f"file '{p}'\n" for p in paths)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     if args.range:
-        out = os.path.join(BUILD, f'preview_{int(lo_t)}_{int(hi_t)}.mp4')
+        out = os.path.join(BUILD, f'preview_{int(lo_t)}_{int(hi_t)}{"_v" if VERTICAL else ""}.mp4')
         subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', listing, '-ss', str(lo_t), '-t', str(hi_t - lo_t),
                         '-i', args.song, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', out], check=True)
     else:
