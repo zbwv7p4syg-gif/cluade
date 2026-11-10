@@ -23,3 +23,8 @@ zuozhuandeng/build/
 cengjing/build/
 lixiang/build/
 aicuo/build/
+
+hongkong/node_modules/
+hongkong/build/*
+!hongkong/build/hongkong_night.mp4
+!hongkong/build/cover.png

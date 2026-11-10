@@ -1,0 +1,8 @@
+{
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@fontsource/noto-serif-tc": "5.3.1",
+    "three": "0.170.0"
+  }
+}
