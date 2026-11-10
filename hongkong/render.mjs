@@ -35,7 +35,7 @@ if (STILLS) {
   await Promise.all(Array.from({ length: WORKERS }, (_, w) => work(w)));
   const useAudio = AUDIO !== "none" && fs.existsSync(AUDIO);
   const ff = ["-y", "-loglevel", "error", "-framerate", String(FPS), "-i", path.join(tmp, "f%05d.png"), ...(useAudio ? ["-ss", String(FROM), "-t", String(TO - FROM), "-i", AUDIO] : []),
-    "-vf", "scale=1920:1080:flags=neighbor", "-c:v", "libx264", "-preset", PREVIEW ? "veryfast" : "slow", "-crf", opt("crf", PREVIEW ? "22" : "18"), "-tune", "animation", "-pix_fmt", "yuv420p",
+    "-vf", "scale=1920:1080:flags=neighbor", "-c:v", "libx264", "-preset", PREVIEW ? "veryfast" : "slow", "-crf", opt("crf", PREVIEW ? "22" : "27"), "-tune", "animation", "-pix_fmt", "yuv420p",
     ...(useAudio ? ["-c:a", "aac", "-b:a", "192k", "-shortest"] : []), "-movflags", "+faststart", OUT];
   await new Promise((res, rej) => spawn("ffmpeg", ff, { stdio: "inherit" }).on("close", (c) => c ? rej(new Error("ffmpeg " + c)) : res()));
   if (!has("keep")) fs.rmSync(tmp, { recursive: true, force: true });
