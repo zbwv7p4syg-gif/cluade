@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 import pix
 import props
 import motifs
+import fx
 from pix import (W, H, FONT, FONT_S, OUT, SKIN, SKIN_S, clamp, lerp, lerpc, ease, eout, ein, eback, span, glow, tfill, blend_box, rng)
 from props import dpaste, person_s, mix_stops, shots, CREAM, GOLD, GOLD_L, PINK, PINK_L
 from motifs import GOLD_SKY, DUSK_SKY, DAWN_SKY, NIGHT_SKY, NOON_SKY, PLAIN_GOLD, PIECE
@@ -30,8 +31,10 @@ def chair(d, x, base, flip=False):
 def s_enter(img, d, lt, dur, T, amp):
     door = ease(span(lt, 0.9, 1.8))
     bloom = ease(span(lt, 5.4, 7.0))
+    fx.LIGHT = ((1, -0.5), (255, 236, 190))
     dx0, dy0, dx1, dy1 = motifs.room(img, d, T, door=door, plant_bloom=bloom)
     base = 196
+    fx.contact(img, 290, base, 18, 0.35)
     # 她：先站在门口的光里，然后往右走进来
     w0, w1 = 2.0, 5.0
     gx = lerp(78, 206, span(lt, w0, w1))
@@ -72,8 +75,12 @@ def s_enter(img, d, lt, dur, T, amp):
 
 # ---------------------------------------------------------------- 8 谢谢你 成为了我的几分之几
 def _give(img, d, t, T):
+    fx.LIGHT = ((1, -0.3), (255, 222, 150))
     motifs.sun_plain(img, d, T, sky=GOLD_SKY, sx=360, sy=156, sr=50, hz=180, dip=3, road=False, grass_on=True, birds=True)
     d.polygon([(0, 226), (140, 222), (340, 224), (W, 230), (W, H), (0, H)], fill=(196, 140, 70))
+    fx.tex(img, (0, 222, W, H), 7, seed=31, scale=2)
+    for x in range(0, W, 3):
+        d.line([(x, 228 + (x * 7) % 5), (x + 1, 223 + (x * 7) % 5)], fill=(226, 176, 96))
     tfill(img, 'polygon', [(180, 228), (300, 228), (290, 236), (170, 236)], (120, 70, 40), 0.3)
     expr_b = 'surprised' if t < 2.6 else 'shy'
     person_s(img, 'boy', 206, 228, 2, view='side', expr=expr_b)
@@ -87,12 +94,16 @@ def _give(img, d, t, T):
         glow(img, 210, 200, 30 * eout(k), (255, 230, 150), 0.8 * (1 - k))
         pix.twinkle(d, 210, 198, k, (255, 255, 255), 6)
     if t > 2.8: glow(img, 210, 200, 8, (255, 220, 140), 0.4 + 0.2 * props.thump(T))
+    fx.motes(img, d, T, 24, (100, 60, W, 220), (255, 236, 180), seed=8)
+    fx.fg(img, T, 'grass', (90, 60, 40), (255, 200, 120), (0, 1), 3, seed=12, h=0.9)
 
 
 def _pie_fill(img, d, t, T):
     pix.sky(img, ((0, (30, 24, 60)), (1, (70, 46, 90))))
     props.bokeh(img, T, 16, ((255, 200, 120), (255, 150, 170), (150, 200, 255)), seed=8, a=0.22)
     pix.stars(d, T, H, 0.5, 80, base=(40, 30, 70))
+    fx.godrays(img, 190, 124, T, 14, (255, 210, 190), 0.05, spread=2 * math.pi, length=360, pulse=0.03 * props.thump(T))
+    fx.motes(img, d, T, 40, (0, 0, W, H), (255, 220, 200), seed=9, drift=(2, -5))
     t_start = T - t
     lands = [b - t_start for b in props.beats_in(t_start + 0.5, t_start + 5.4)][::2][:3]
     while len(lands) < 3: lands.append(lands[-1] + 1.6 if lands else 0.6)
@@ -143,7 +154,9 @@ def lashes(img, d, k):
 def _close_eyes(img, d, t, T):
     pix.sky(img, ((0, (255, 200, 170)), (1, (255, 230, 200))))
     props.bokeh(img, T, 10, ((255, 236, 200), (255, 200, 170)), seed=5, a=0.3)
-    props.bust(img, d, 'boy', 240, 44, 4, expr='smile' if t < 0.9 else 'closed')
+    fx.godrays(img, 420, 30, T, 7, (255, 246, 220), 0.06, spread=math.pi * 0.7, center=math.pi * 0.8, length=420)
+    motifs.lit_bust(img, 'boy', 240, 44, 4, 'smile' if t < 0.9 else 'closed', (1, -0.8), (255, 236, 200))
+    fx.motes(img, d, T, 20, (0, 0, W, H), (255, 246, 220), seed=4)
     lashes(img, d, span(t, 1.2, 2.3))
 
 
@@ -155,6 +168,8 @@ def _see_you(img, d, t, T):
         glow(img, x, y, r.uniform(40, 80), ((120, 80, 200), (60, 140, 180), (200, 90, 150))[i % 3], 0.18)
     a = span(t, 0.2, 1.4)
     glow(img, 240, 150, 90, (255, 214, 140), 0.5 * a + 0.12 * props.thump(T))
+    fx.godrays(img, 240, 150, T, 16, (255, 220, 160), 0.05 * a, spread=2 * math.pi, length=300)
+    fx.motes(img, d, T, 50, (0, 0, W, H), (255, 226, 180), seed=12, drift=(1, -3), glow_a=0.3)
     pts = []
     for i in range(14):
         ang = i / 14 * 2 * math.pi + T * 0.6
@@ -179,11 +194,20 @@ def s_south(img, d, lt, dur, T, amp):
     pix.sky(img, NOON_SKY, 0, 122)
     glow(img, 420, 24, 90, (255, 252, 220), 0.7)
     d.ellipse([408, 12, 432, 36], fill=(255, 252, 230))
-    for i in range(4):
-        x = (i * 150 - lt * 6) % (W + 120) - 80
-        pix.cloud(d, x, 22 + (i % 2) * 26, 3 if i % 2 == 0 else 2, (255, 255, 255), (214, 232, 248), (255, 255, 255))
+    fx.LIGHT = ((1, -1), (255, 250, 230))
+    fx.godrays(img, 420, 24, T, 8, (255, 255, 240), 0.05, spread=math.pi * 0.6, center=math.pi * 0.75, length=300)
+    for i in range(5):
+        x = (i * 120 - lt * 6) % (W + 120) - 60
+        fx.cumulus(d, x, 44 + (i % 2) * 22 - (i % 3) * 6, 1.6 if i % 2 == 0 else 1.1, (250, 252, 255), (255, 255, 255), (200, 218, 240),
+                   (255, 255, 255), 1, seed=i)
+    fx.haze(img, 120, 10, (220, 240, 255), 0.5)
     d.polygon([(300, 122), (340, 108), (372, 112), (420, 122)], fill=(100, 150, 170))
+    d.polygon([(330, 122), (340, 112), (352, 114), (372, 122)], fill=(120, 168, 180))
     motifs.sea(img, d, 122, 168, lt)
+    for k in range(6):                                         # 一道道往岸边推的浪
+        y = 130 + k * 7
+        for x in range(0, W, 2):
+            if math.sin(x * 0.08 + k * 1.7 - lt * (1.5 + k * 0.3)) > 0.85: d.point((x, y + round(math.sin(x * 0.05 + lt) * 1.2)), fill=(170, 220, 240))
     for i in range(3):
         bx = (100 + i * 60 + lt * 20) % W; by = 80 + i * 10 + 4 * math.sin(T * 2 + i)
         pix.bird(d, bx, by, T, (255, 255, 255), i)
@@ -202,6 +226,7 @@ def s_south(img, d, lt, dur, T, amp):
         x = (k * 48 - off) % (W + 48) - 24
         d.rectangle([x, 217, x + 22, 219], fill=(250, 246, 230))
     bump = round(props.thump(T, 0.2) * 2)
+    fx.contact(img, 246, 236, 40, 0.4, (40, 40, 60), 4)
     seat, rack, head = motifs.bicycle(d, 246, 236 - bump, T, 2, roll=-lt * 9, col=(236, 90, 90))
     person_s(img, 'girl', rack[0] + 2, rack[1] + 18, 2, view='side', pose='sit', arms='hug', expr='happy')
     for k in range(4):                                         # 她的头发被风吹向后面
@@ -214,6 +239,16 @@ def s_south(img, d, lt, dur, T, amp):
         d.ellipse([x - 12, 244, x + 12, 262], fill=(70, 140, 70))
         pix.flower(d, x - 4, 250, ((255, 120, 150), (255, 220, 90), (255, 255, 255))[k % 3], 2, h=0)
         pix.flower(d, x + 5, 254, ((255, 180, 90), (230, 120, 220), (255, 120, 150))[k % 3], 0, h=0)
+    for k in range(2):                                         # 离镜头最近的一片棕榈叶，一闪而过
+        x = (k * 380 - off * 2.4) % (W + 400) - 200
+        rib = [(x + j * 12, -6 + j * 4 + (j / 10) ** 2 * 30) for j in range(13)]
+        for j, (px, py) in enumerate(rib[1:], 1):
+            ln = 34 - abs(j - 5) * 3
+            for sg in (-1, 1):
+                d.line([(px, py), (px + sg * 6 + 4, py + ln)], fill=(28, 64, 46), width=3)
+                d.line([(px, py), (px + sg * 6 + 4, py + ln)], fill=(50, 100, 70))
+        d.line(rib, fill=(70, 110, 70), width=3)
+    fx.motes(img, d, T, 20, (0, 0, W, 180), (255, 255, 240), seed=10, drift=(-30, 0), glow_a=0.15)
 
 
 # ---------------------------------------------------------------- 11 就算犯错 你拿岁月等我
@@ -224,15 +259,33 @@ def bouquet(d, x, y):
 
 
 def _fall(img, d, t, T):
+    fx.LIGHT = ((-1, -1), (255, 250, 220))
     pix.sky(img, NOON_SKY, 0, 160)
+    for i in range(4):
+        fx.cumulus(d, 60 + i * 130 - t * 4, 34 + (i % 2) * 18, 1.2, (250, 252, 255), (255, 255, 255), (200, 218, 240), (255, 255, 255), -1, seed=20 + i)
+    fx.mountains(img, 162, [(11, 30, 0.6, (150, 190, 200)), (12, 18, 0.55, (120, 170, 160))])
+    for i in range(16):                                        # 远处一排树
+        x = i * 32 + (i % 3) * 5
+        pix.tree_round(d, x, 162, 0.6, (90, 150, 110), (120, 180, 120), (90, 70, 60))
+    fx.haze(img, 160, 8, (220, 240, 250), 0.35)
     for i, x in enumerate((40, 140, 330, 430)):
-        pix.tree_round(d, x, 160, 1.1, (80, 160, 90), (120, 196, 110))
-    pix.sky(img, ((0, (150, 196, 110)), (1, (120, 170, 90))), 160, 200)
+        pix.tree_round(d, x, 166, 1.2, (70, 150, 84), (120, 196, 110))
+        fx.contact(img, x, 166, 26, 0.3, (40, 80, 40), 4)
+    pix.sky(img, ((0, (150, 196, 110)), (1, (120, 170, 90))), 166, 200)
+    fx.tex(img, (0, 166, W, 200), 8, seed=41, scale=2)
+    for x in range(0, W, 7):                                   # 灌木
+        d.ellipse([x - 6, 190, x + 8, 204], fill=(80, 150, 80)); d.ellipse([x - 4, 191, x + 3, 197], fill=(120, 190, 100))
     pix.sky(img, ((0, (226, 206, 160)), (1, (206, 184, 140))), 200, H)
+    fx.tex(img, (0, 200, W, H), 8, seed=42, scale=2)
+    for k in range(30):
+        r = rng(k)
+        x, y = r.uniform(0, W), r.uniform(206, H)
+        d.ellipse([x - 2, y - 1, x + 2, y + 1], fill=(190, 166, 126))
     d.ellipse([228, 214, 240, 222], fill=(140, 130, 130)); d.ellipse([230, 214, 236, 217], fill=(180, 170, 170))
     trip = 1.3
     if t < trip:
         x = lerp(90, 224, t / trip)
+        fx.contact(img, x, 222, 14, 0.35)
         person_s(img, 'boy', x, 222, 2, view='side', pose='run', ph=pix.wph(t, 10), expr='happy')
         bouquet(d, x + 14, 196)
     else:
@@ -256,9 +309,12 @@ def _fall(img, d, t, T):
         if x_k > 0:                                            # 一个大大的红叉
             s = eback(x_k) * 16
             cx, cy = 300, 110
+            glow(img, cx, cy, 30 * x_k, (255, 80, 80), 0.3)
             for w_, c in ((9, OUT), (5, (236, 60, 70))):
                 d.line([(cx - s, cy - s), (cx + s, cy + s)], fill=c, width=w_)
                 d.line([(cx - s, cy + s), (cx + s, cy - s)], fill=c, width=w_)
+            d.line([(cx - s + 2, cy - s + 1), (cx - 2, cy - 3)], fill=(255, 160, 160), width=1)
+    fx.fg(img, T, 'grass', (60, 100, 50), (255, 246, 200), (0, 1), 3, seed=14, h=0.9)
 
 
 def _wait(img, d, t, T):
@@ -280,9 +336,18 @@ def _wait(img, d, t, T):
     si = int(live / 0.75) % 4 if t <= arrive else 3
     season = seasons[si]
     gcol = motifs.SEASON[season]['ground']
+    for k in range(7):                                         # 远处的房子，夜里亮起窗
+        hx = 20 + k * 68; hh = 26 + (k * 13) % 16
+        d.rectangle([hx, 190 - hh, hx + 40, 190], fill=lerpc((200, 190, 200), (50, 46, 80), night))
+        d.polygon([(hx - 4, 190 - hh), (hx + 20, 190 - hh - 14), (hx + 44, 190 - hh)], fill=lerpc((180, 110, 100), (60, 40, 70), night))
+        for wx in (hx + 8, hx + 26):
+            d.rectangle([wx, 190 - hh + 8, wx + 5, 190 - hh + 14], fill=lerpc((150, 180, 210), (255, 214, 130), night))
+    fx.haze(img, 188, 10, lerpc((230, 236, 250), (40, 40, 80), night), 0.4)
     pix.sky(img, ((0, gcol), (1, lerpc(gcol, (0, 0, 0), 0.2))), 190, H)
+    fx.tex(img, (0, 190, W, H), 8, seed=51, scale=2)
     pix.darken(img, 0.35 * night, (10, 10, 40))
     d = ImageDraw.Draw(img)
+    fx.contact(img, 150, 196, 40, 0.3, (30, 30, 50), 5); fx.contact(img, 200, 214, 30, 0.3, (30, 30, 50), 4)
     motifs.season_tree(d, 150, 196, 2.0, season, T)
     motifs.bench(d, 200, 214, 1)
     pix.lamp(img, d, 320, 214, on=night, h=60)
@@ -298,6 +363,7 @@ def _wait(img, d, t, T):
         x = lerp(W + 20, 232, span(t, arrive - 0.6, arrive + 0.2))
         pose = 'run' if t < arrive + 0.2 else 'stand'
         person_s(img, 'boy', x, 214, 1, view='side', pose=pose, ph=pix.wph(t, 10), expr='happy', flip=True)
+        fx.LIGHT = None
         k = span(t, arrive + 0.5, arrive + 1.0)
         if k > 0: pix.put(img, 'heart', 218, 168 - 6 * eout(k), 1, alpha=k)
 
@@ -317,8 +383,16 @@ def s_roof(img, d, lt, dur, T, amp):
     for b in props.beats_in(T - lt, T - lt + dur)[1::3]:
         pix.meteor(d, T, b, 380 - (b * 37) % 200, 20 + (b * 13) % 40, -110, 56, 0.9)
     oy = 120 * (1 - ease(span(lt, 0, 2.6)))
+    fx.LIGHT = ((-1, -0.6), (200, 210, 255))
+    pix.city(img, d, 262 + oy, 22, 0, (20, 20, 48), (255, 214, 140), 40, 110, 0.2, T, edge=(34, 34, 70))
     pix.city(img, d, 270 + oy, 21, 0, (26, 26, 58), (255, 214, 140), 20, 70, 0.3, T, edge=(40, 40, 80))
+    fx.haze(img, 262 + oy, 30, (120, 90, 140), 0.45)
     ry = 210 + oy
+    for k, hx in enumerate((20, 430)):                          # 两边别人家的屋顶和天线
+        hy = ry + 20 + k * 6
+        d.polygon([(hx - 30, hy + 30), (hx, hy), (hx + 40, hy), (hx + 70, hy + 30)], fill=(50, 40, 64))
+        d.line([(hx + 10, hy), (hx + 10, hy - 24)], fill=(90, 86, 110))
+        d.line([(hx + 2, hy - 18), (hx + 18, hy - 18)], fill=(90, 86, 110)); d.line([(hx + 4, hy - 12), (hx + 16, hy - 12)], fill=(90, 86, 110))
     d.polygon([(80, ry), (420, ry), (470, H + oy), (30, H + oy)], fill=(70, 50, 70))
     for k in range(9):
         y = ry + 6 + k * 7
@@ -330,6 +404,7 @@ def s_roof(img, d, lt, dur, T, amp):
     person_s(img, 'boy', 228, ry + 4, 2, view='back', pose='sit', shade=sh)
     person_s(img, 'girl', 250, ry + 6, 2, view='back', pose='sit', shade=sh)
     pix.put(img, 'heart', 240, ry - 92 + 3 * math.sin(T * 2), 1, alpha=span(lt, 3.2, 3.8))
+    fx.motes(img, d, T, 26, (0, 0, W, H), (255, 240, 200), seed=13, drift=(2, -2), glow_a=0.2)
 
 
 # ---------------------------------------------------------------- 13 我算什么让你无条件的为我
@@ -343,7 +418,13 @@ def _rain_walk(img, d, t, T):
     pix.rain(d, T, 0, W, 0, 214, 140, (110, 130, 190), slant=-2, ln=6)
     pix.sky(img, ((0, (40, 40, 70)), (1, (24, 24, 50))), 214, H)
     props.reflect(img, 214, 56, T, a=0.6)
+    for k in range(-1, 6):                                     # 路灯照在湿地上的一长条光
+        x = (k * 110 - off) % (W + 110) - 40
+        glow(img, x + 1, 230, 26, (255, 214, 140), 0.35, ry=6)
+        for j in range(5):
+            if math.sin(T * 6 + j + k) > 0: d.line([(x - 6 + j * 3, 220 + j * 7), (x + j * 3, 220 + j * 7)], fill=(255, 220, 160))
     d = ImageDraw.Draw(img)
+    fx.LIGHT = ((0.6, -1), (255, 214, 150))
     ph = pix.wph(t, 7)
     person_s(img, 'boy', 214, 214, 2, view='side', pose='walk', ph=ph, expr='down')
     person_s(img, 'girl', 252, 214, 2, view='side', pose='walk', ph=ph + 2, arms='umbrella', expr='smile')
@@ -357,14 +438,25 @@ def _rain_walk(img, d, t, T):
     pix.rain(d, T + 3, 0, ux - 40, 0, H, 40, (150, 170, 220), slant=-2, ln=8, seed=3)
     pix.rain(d, T + 3, ux + 44, W, 0, H, 40, (150, 170, 220), slant=-2, ln=8, seed=4)
     props.splashes(d, T, 216, 266, 30, seed=2)
+    for i in range(6):                                         # 离镜头很近、失焦的大雨滴
+        r = rng(i * 3)
+        y = (r.uniform(0, H) + T * 420) % (H + 60) - 30
+        x = r.uniform(0, W)
+        d.line([(x, y), (x - 3, y + 26)], fill=(130, 150, 210), width=3)
 
 
 def _puddle(img, d, t, T):
     pix.sky(img, ((0, (40, 38, 58)), (1, (30, 28, 46))))
+    fx.tex(img, (0, 0, W, H), 9, seed=61, scale=1)
+    fx.tex(img, (0, 0, W, H), 5, seed=62, scale=3)
     r = rng(4)
     for _ in range(300):
         x, y = r.uniform(0, W), r.uniform(0, H)
         d.point((x, y), fill=r.choice(((52, 50, 72), (26, 24, 40), (60, 56, 80))))
+    for k in range(4):                                         # 落在地上的叶子
+        x, y = r.uniform(20, W - 20), r.uniform(10, H - 30)
+        if ((x - 240) / 180) ** 2 + ((y - 136) / 100) ** 2 < 1: continue
+        d.polygon([(x - 5, y), (x, y - 3), (x + 6, y), (x, y + 3)], fill=r.choice(((150, 100, 60), (120, 130, 60))))
     cx, cy, rx, ry = 240, 136, 170, 92
     lay = Image.new('RGB', (W, H)); ld = ImageDraw.Draw(lay)
     pix.sky(lay, ((0, (20, 24, 60)), (1, (60, 70, 120))))
@@ -386,6 +478,8 @@ def _puddle(img, d, t, T):
     img.paste(Image.fromarray(np.where(m[..., None], a, np.asarray(img)).astype(np.uint8)))
     d = ImageDraw.Draw(img)
     d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], outline=(70, 74, 104))
+    d.arc([cx - rx + 4, cy - ry + 3, cx + rx - 4, cy + ry - 3], 200, 330, fill=(130, 140, 180))
+    glow(img, 340, 70, 30, (255, 220, 160), 0.3)
     props.ripples(d, T, (cx - 120, cy - 60, cx + 120, cy + 60), 8, (190, 200, 240), seed=3, per=1.1, rmax=12)
 
 

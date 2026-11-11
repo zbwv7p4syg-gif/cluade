@@ -13,6 +13,7 @@ from PIL import Image, ImageDraw
 import pix
 import props
 import motifs
+import fx
 import sc_a
 from pix import (W, H, FONT, FONT_S, OUT, SKIN, SKIN_S, clamp, lerp, lerpc, ease, eout, ein, eback, span, glow, tfill, blend_box, rng)
 from props import dpaste, person_s, mix_stops, shots, CREAM, GOLD, GOLD_L, PINK, PINK_L
@@ -23,6 +24,7 @@ YY, XX = np.mgrid[0:H, 0:W]
 
 # ---------------------------------------------------------------- 21 在那一个回不去的天明
 def _dawn(img, d, t, T):
+    fx.LIGHT = ((0.3, -1), (255, 220, 180))
     sy = lerp(206, 150, eout(span(t, 0, 5)))
     sky = mix_stops(DAWN_SKY, GOLD_SKY, span(t, 1, 6) * 0.5)
     motifs.sun_plain(img, d, T, sky=sky, sx=300, sy=sy, sr=60, hz=176, dip=4, plain=PLAIN_DAWN, glow_a=0.5)
@@ -33,7 +35,10 @@ def _dawn(img, d, t, T):
                                 (300 + math.cos(a + 0.04) * 400, sy + math.sin(a + 0.04) * 400)], (255, 236, 190), 0.06 + 0.06 * b)
     sh = (0.8, 0.76, 0.84)
     person_s(img, 'boy', 228, 232, 2, view='back', arms='hold_r', shade=sh)
+    fx.contact(img, 241, 232, 30, 0.4)
     person_s(img, 'girl', 254, 232, 2, view='back', arms='hold_l', shade=sh)
+    fx.motes(img, d, T, 30, (0, 80, W, 240), (255, 230, 200), seed=22)
+    fx.fg(img, T, 'wheat', (70, 50, 60), (255, 210, 170), (0, 1), 3, seed=23, h=1.1)
 
 
 @lru_cache(None)
@@ -45,6 +50,10 @@ def dawn_still(w, h):
 
 def _void(img, d, T, k=1.0):
     pix.sky(img, ((0, (10, 8, 26)), (1, (34, 22, 50))))
+    for i, (x, y, rr, c) in enumerate(((120, 70, 120, (90, 50, 140)), (380, 60, 100, (150, 70, 120)), (260, 150, 150, (60, 70, 150)))):
+        glow(img, x + 10 * math.sin(T * 0.2 + i), y, rr, c, 0.35, ry=rr * 0.6, power=1.0)
+    pix.stars(d, T, 232, 0.8, 160, base=(20, 16, 40))
+    pix.sky(img, ((0, (30, 22, 50)), (1, (12, 10, 24))), 232, H)
     r = rng(1)
     for i in range(40):                                        # 速度线
         y = r.uniform(10, 230); sp = r.uniform(200, 400)
@@ -69,8 +78,11 @@ def _chase(img, d, t, T):
                 x, y = cx + vx * k, cy + vy * k
                 c = r.choice(((255, 200, 140), (255, 230, 180), (200, 150, 190), (150, 140, 200)))
                 d.rectangle([x, y, x + 2, y + 2], fill=lerpc(c, (20, 16, 40), k / 1.2))
-    d.line([(0, 232), (W, 232)], fill=(60, 50, 90))
+    d.line([(0, 232), (W, 232)], fill=(90, 70, 120))
+    fx.LIGHT = ((1, -0.4), (255, 210, 170))
+    fx.contact(img, 150, 232, 14, 0.4, (0, 0, 0))
     person_s(img, 'boy', 150, 232, 2, view='side', pose='run', ph=pix.wph(t, 11), expr='sad', arms='reach' if t > 3.5 else 'auto')
+    props.reflect(img, 232, 38, T, (10, 8, 24), a=0.4)
 
 
 def _shatter(img, d, t, T):
@@ -112,7 +124,9 @@ def _shatter(img, d, t, T):
                 d.rectangle([px, py, px + 2, py + 2], fill=c)
         if k < 0.25: props.shake(img, k, 6, 0.25); d = ImageDraw.Draw(img)
         if k < 0.2: pix.blend_box(img, (0, 0, W, H), (255, 250, 240), np.full((H, W), 0.8 * (1 - k / 0.2)))
+        fx.LIGHT = ((0.6, -1), (255, 210, 170))
         person_s(img, 'boy', 200, 232, 2, view='side', pose='sit' if k > 1.2 else 'stand', expr='sad')
+        props.reflect(img, 232, 38, T, (10, 8, 24), a=0.4)
 
 
 def s_dawn(img, d, lt, dur, T, amp):
@@ -122,7 +136,9 @@ def s_dawn(img, d, lt, dur, T, amp):
 # ---------------------------------------------------------------- 22 我的 几分之几
 def s_mine(img, d, lt, dur, T, amp):
     pix.sky(img, ((0, (12, 10, 30)), (1, (40, 26, 56))))
+    glow(img, 140, 80, 140, (90, 50, 140), 0.3, ry=80, power=1.0); glow(img, 360, 60, 120, (150, 70, 120), 0.3, ry=70, power=1.0)
     pix.stars(d, T, H, 0.5, 100)
+    fx.godrays(img, 240, 118, T, 16, (255, 220, 170), 0.05 * span(lt, 1.6, 2.6), spread=2 * math.pi, length=320)
     tx, ty = 240, 118
     form = 2.4
     r = rng(9)
@@ -145,7 +161,11 @@ def s_mine(img, d, lt, dur, T, amp):
         if u < 0.5: pix.twinkle(d, tx, ty, u / 0.5, (255, 255, 255), 10)
         for i in range(6):
             pix.twinkle(d, int(tx + math.cos(i + T) * 26), int(y + math.sin(i * 2 + T) * 16), (T * 0.9 + i / 6) % 1, (255, 240, 200), 3)
-    motifs.cupped_hands(img, d, 240, H + 16, 1.25)
+    def hands(l, ld): motifs.cupped_hands(l, ld, 240, H + 16, 1.25)
+    lay = fx.lit_layer(hands, (0, -1), 0.32, (255, 226, 170))
+    img.paste(lay, (0, 0), lay)
+    if lt > form: glow(img, 240, 190, 50, (255, 210, 150), 0.35)
+    fx.motes(img, d, T, 30, (0, 0, W, H), (255, 220, 180), seed=24, drift=(0, -4))
 
 
 # ---------------------------------------------------------------- 23 你终于还是离开我的生命
@@ -164,7 +184,12 @@ def s_station(img, d, lt, dur, T, amp):
         d.rectangle([hx + 5 + wv, 168, hx + 6 + wv, 170], fill=SKIN)
     props.smoke(img, x - 30, 160, T, 7, vx=-60 - (lt - go) * 30 if lt > go else -20, vy=-10, seed=3, a=0.8)
     # 站台：顶棚、柱子、黄线
+    fx.LIGHT = ((-1, -0.5), (255, 200, 170))
     d.rectangle([0, 214, W, H], fill=(150, 146, 156)); d.rectangle([0, 214, W, 218], fill=(196, 190, 196))
+    for y in range(226, H, 10): d.line([(0, y), (W, y)], fill=(136, 132, 144))
+    for x in range(0, W, 22): d.line([(x, 226), (x - 8, H)], fill=(136, 132, 144))
+    fx.tex(img, (0, 218, W, H), 6, seed=91)
+    glow(img, 0, 120, 160, (255, 160, 120), 0.3 * (1 - night))
     for xx in range(0, W, 8): d.rectangle([xx, 220, xx + 4, 221], fill=(250, 210, 80))
     d.rectangle([0, 0, W, 10], fill=(70, 60, 80)); d.rectangle([0, 10, W, 13], fill=(100, 86, 104))
     for px in (40, 200, 360):
@@ -176,6 +201,9 @@ def s_station(img, d, lt, dur, T, amp):
             glow(img, px, 18, 24, (255, 236, 180), 0.5 * on)
             tfill(img, 'polygon', [(px - 6, 18), (px + 6, 18), (px + 30, 240), (px - 30, 240)], (255, 236, 180), 0.08 * on)
     d.rectangle([452, 196, 456, 236], fill=(80, 70, 90)); d.rectangle([440, 186, 468, 198], fill=(240, 236, 220))
+    for bx in (90, 330):                                       # 站台上的长椅
+        motifs.bench(d, bx, 232, 1, (110, 90, 100), (80, 66, 76), (50, 46, 60))
+    fx.contact(img, 250 if lt < 1.6 else (lerp(250, 420, ease(span(lt, 1.6, 4.2))) if lt < 4.2 else 420), 236, 16, 0.4)
     if lt < 1.6:
         person_s(img, 'boy', 250, 236, 2, view='side', arms='wave', ph=int(T * 5), expr='sad')
     elif lt < 4.2:
@@ -206,11 +234,21 @@ def s_aging(img, d, lt, dur, T, amp):
         if ph < 0.5: d.ellipse([sx_ - 8, sy_ - 8, sx_ + 8, sy_ + 8], fill=(255, 236, 170))
         else: pix.moon(d, sx_, sy_, 7)
     gcol = motifs.SEASON[season]['ground']
+    if lt < stop - 0.4:
+        for i in range(4):
+            fx.cumulus(d, (40 + i * 120 - live * 40) % (W + 100) - 50, 40 + (i % 2) * 20, 1.1, lerpc((250, 252, 255), (60, 60, 100), night),
+                       lerpc((255, 255, 255), (80, 80, 120), night), lerpc((200, 218, 240), (40, 40, 80), night), None, 1, seed=50 + i)
+    fx.mountains(img, 180, [(31, 34, 0.6, lerpc(lerpc(gcol, (120, 140, 180), 0.6), (30, 30, 60), night)),
+                            (32, 18, 0.55, lerpc(lerpc(gcol, (90, 120, 140), 0.4), (24, 24, 50), night))])
     pix.hills(d, 176, 4, 0.01, 1.2, lerpc(gcol, (90, 110, 140), 0.3))
     pix.sky(img, ((0, gcol), (1, lerpc(gcol, (0, 0, 0), 0.25))), 186, H)
+    fx.tex(img, (0, 186, W, H), 8, seed=92, scale=2)
+    for x in range(0, W, 4):
+        d.line([(x, 190 + (x * 7) % 9), (x + 1, 186 + (x * 7) % 9)], fill=lerpc(gcol, (255, 255, 255), 0.15))
     pix.darken(img, 0.4 * night, (10, 10, 40))
     d = ImageDraw.Draw(img)
     motifs.season_tree(d, 150, 222, lerp(1.6, 2.4, lt / dur), season, T)
+    fx.contact(img, 150, 222, 40, 0.3, (30, 30, 50), 5); fx.contact(img, 262, 226, 30, 0.3, (30, 30, 50), 4)
     motifs.bench(d, 262, 226, 1)
     if season == 'autumn': props.leaves(d, T, 30, seed=3)
     elif season == 'winter': pix.snow(d, T, 90, seed=2)
@@ -234,8 +272,9 @@ def s_aging(img, d, lt, dur, T, amp):
 
 # ---------------------------------------------------------------- 25 请记得我曾经 爱过
 def s_remember(img, d, lt, dur, T, amp, sun_drop=0.0, sky=None):
+    fx.LIGHT = ((0.2, -1), (255, 226, 160))
     hf = motifs.sun_plain(img, d, T, sky=sky or GOLD_SKY, sx=290, sy=172 + sun_drop, sr=78, hz=176, dip=12, glow_a=0.6 * (1 - span(sun_drop, 0, 80)),
-                          sun_a=1 - span(sun_drop, 60, 100))
+                          sun_a=1 - span(sun_drop, 60, 100), warm=1 - span(sun_drop, 0, 100))
     for x, s_ in ((60, 0.9), (96, 0.6)):
         pix.tree_round(d, x, hf(x) + 1, s_, (130, 84, 70), (160, 104, 80), (100, 64, 56))
     # 年轻时的两个人，牵着手沿着土路走向太阳，越走越小、越来越淡
@@ -254,6 +293,8 @@ def s_remember(img, d, lt, dur, T, amp, sun_drop=0.0, sky=None):
     motifs.old_man(img, d, 250, 232, view='back', s=2, shade=(0.86, 0.8, 0.82))
     for i in range(0, W, 6):
         motifs.wheat(d, i + 3 * math.sin(i), H - 1 - (i % 4) * 3, 16 + (i * 7) % 9, T, wind=0.8, ph=i)
+    fx.motes(img, d, T, 34, (0, 60, W, 240), (255, 236, 180), seed=25, drift=(5, -2))
+    fx.fg(img, T, 'wheat', (70, 40, 34), (255, 200, 120), (0, 1), 3, seed=2, h=1.2)
     # 他手里那一块升上天，变成一颗星
     k = span(lt, 3.6, 5.6)
     if k > 0:

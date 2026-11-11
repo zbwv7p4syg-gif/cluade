@@ -13,6 +13,7 @@ from PIL import Image, ImageDraw
 
 import pix
 import props
+import fx
 from pix import (W, H, FONT, FONT_S, OUT, SKIN, SKIN_S, clamp, lerp, lerpc, ease, eout, ein, eback, span, glow, tfill,
                  blend_box, paste, outline, rng, heart_poly)
 from props import dpaste, CREAM, GOLD, GOLD_L, PINK, PINK_L
@@ -73,6 +74,7 @@ def mini_shoe(img, x, y, a=1.0):
 def big_shoe_img(s=4, flip=False):
     im = charmap(BIG_SHOE, SHOE_PAL)
     if flip: im = im.transpose(Image.FLIP_LEFT_RIGHT)
+    im = fx.shade_img(im, 0.8, -0.8, 0.28, (255, 236, 190), dark=(150, 110, 120))
     return im.resize((im.width * s, im.height * s), Image.NEAREST)
 
 
@@ -128,6 +130,40 @@ def _plain_layer(hz, sx, sr, dip, cols, road):
             px = lerp(vx, bx, t ** 1.0); py = lerp(vy, H - top, t)
             if 0 <= px < W and alpha[min(H - top - 1, int(py)), int(px)] and (int(py) + k) % 2 == 0:
                 d.point((px, py), fill=lerpc(row, cols[0][1], 0.6 * (1 - t)) + (255,))
+    # 田块：越近越宽的横向分界，颜色一深一浅
+    r = rng(5)
+    yk = 0.0
+    k = 0
+    while True:
+        k += 1
+        y0 = vy + (k / 11) ** 2.1 * (H - top - vy)
+        if y0 >= H - top: break
+        shade = lerpc(cols[min(len(cols) - 1, 1 + k // 4)][1], (80, 50, 40), 0.18)
+        for x in range(W):
+            yy = int(y0 + 2 * math.sin(x * 0.02 + k))
+            if 0 <= yy < H - top and alpha[yy, x] and (x + k) % 3: d.point((x, yy), fill=shade + (255,))
+    # 麦穗的笔触：远处是小点，近处是一根根带穗的麦子
+    lo, hi = lerpc(cols[2][1], (90, 50, 30), 0.25), lerpc(cols[0][1], (255, 250, 220), 0.35)
+    for i in range(2600):
+        t = r.random() ** 1.5
+        y = vy + 2 + t * (H - top - vy - 2)
+        x = r.uniform(0, W)
+        if not alpha[min(H - top - 1, int(y)), int(x)]: continue
+        hgt = 1 + t * 7
+        c = hi if r.random() < 0.45 else lo
+        c = lerpc(c, cols[0][1], 0.5 * (1 - t))
+        d.line([(x, y), (x + r.uniform(-1, 1) * t * 2, y - hgt)], fill=c + (255,))
+        if t > 0.5 and r.random() < 0.5: d.point((x, y - hgt - 1), fill=hi + (255,))
+    # 远处的小树和草垛
+    far = lerpc(cols[0][1], (110, 80, 90), 0.45)
+    for k in range(9):
+        x = r.uniform(10, W - 10)
+        if abs(x - vx) < sr * 1.4: continue
+        yb = int(vy + 2 + r.uniform(0, 8))
+        if r.random() < 0.5:
+            d.ellipse([x - 4, yb - 7, x + 4, yb], fill=far + (255,)); d.line([(x, yb), (x, yb - 2)], fill=far + (255,))
+        else:
+            d.pieslice([x - 4, yb - 4, x + 4, yb + 4], 180, 360, fill=lerpc(far, (255, 220, 150), 0.3) + (255,))
     if road:
         rc, rc2 = lerpc(cols[1][1], (255, 250, 230), 0.4), lerpc(cols[1][1], (255, 250, 230), 0.2)
         poly = [(vx - 1, vy + 1), (vx + 1, vy + 1), (vx + 60, H - top), (vx - 60, H - top)]
@@ -137,6 +173,12 @@ def _plain_layer(hz, sx, sr, dip, cols, road):
             y = lerp(vy + 2, H - top, t)
             hw = lerp(1, 60, t)
             d.line([(vx - hw * 0.3, y), (vx - hw * 0.1, y)], fill=rc2 + (255,))
+            d.line([(vx + hw * 0.15, y + 1), (vx + hw * 0.35, y + 1)], fill=rc2 + (255,))
+        for i in range(160):                                     # 路上的小石子
+            t = r.random() ** 1.3
+            y = lerp(vy + 3, H - top, t); hw = lerp(1, 58, t)
+            x = vx + r.uniform(-hw, hw)
+            d.point((x, y), fill=lerpc(rc2, (120, 90, 60), 0.5) + (255,))
     return im
 
 
@@ -145,10 +187,35 @@ PLAIN_DAWN = ((0, (236, 200, 170)), (0.25, (196, 156, 120)), (0.6, (150, 116, 90
 PLAIN_NIGHT = ((0, (90, 70, 110)), (0.3, (60, 48, 84)), (1, (26, 22, 44)))
 
 
+@lru_cache(None)
+def _hills_far(sx, sr, hz, col, seed):
+    """太阳两边的远山，太阳正下方让开，好让太阳直接压在平原上"""
+    im = Image.new('RGBA', (W, H)); d = ImageDraw.Draw(im)
+    r = rng(seed)
+    pts = []
+    ph1, ph2 = r.uniform(0, 6), r.uniform(0, 6)
+    for x in range(0, W + 1, 2):
+        far = clamp((abs(x - sx) - sr * 1.1) / (sr * 1.2))
+        hgt = (14 + 8 * math.sin(x * 0.021 + ph1) + 5 * math.sin(x * 0.057 + ph2) + 2 * math.sin(x * 0.17)) * far
+        pts.append((x, hz + 1 - hgt))
+    d.polygon(pts + [(W, hz + 4), (0, hz + 4)], fill=col + (255,))
+    light = lerpc(col, (255, 236, 200), 0.25)
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        if (y1 < y0) == (x0 < sx): d.line([(x0, y0), (x1, y1)], fill=light + (255,))
+    return im
+
+
 def sun_plain(img, d, T, sky=GOLD_SKY, sx=300, sy=150, sr=64, hz=176, dip=7, plain=PLAIN_GOLD, road=True, shimmer=True, sun_a=1.0,
-              bands=0, grass_on=True, glow_a=0.55, birds=True, sun_cols=None):
+              bands=0, grass_on=True, glow_a=0.55, birds=True, sun_cols=None, clouds=True, warm=1.0, rays=True, hills=True):
     """全片的母题：压着平原的大太阳。返回地平线函数"""
     pix.sky(img, sky)
+    hzc = sky[-1][1]
+    if clouds: fx.sunset_clouds(img, d, T, sx, hz, warm, seed=int(sx) % 7, top=24)
+    if rays and sun_a > 0: fx.godrays(img, sx, sy, T, 12, (255, 236, 190), 0.05 * sun_a, spread=math.pi * 1.2, length=420)
+    if hills:
+        hc = lerpc(hzc, (120, 84, 120), 0.35)
+        im = _hills_far(int(sx), int(sr), int(hz), hc, 3)
+        img.paste(im, (0, 0), im)
     if sun_a > 0:
         glow(img, sx, sy, sr * 2.6, SUN_MID, glow_a * sun_a, power=1.4)
         glow(img, sx, sy, sr * 1.5, SUN_HI, 0.35 * sun_a, power=1.2)
@@ -157,10 +224,15 @@ def sun_plain(img, d, T, sky=GOLD_SKY, sx=300, sy=150, sr=64, hz=176, dip=7, pla
     lay = _plain_layer(int(hz), int(sx), int(sr), int(dip), tuple(plain), road)
     img.paste(lay, (0, int(hz)), lay)
     hf = horizon_fn(hz, sx, sr, dip)
+    fx.haze(img, hz, 10, lerpc(hzc, (255, 255, 255), 0.2), 0.35)
     if sun_a > 0:
         # 太阳在平原上的反光
         glow(img, sx, hz + dip + 6, sr * 1.3, SUN_HI, 0.35 * sun_a, ry=10, power=1.2)
         d.line([(x, hf(x)) for x in range(int(sx - sr * 1.6), int(sx + sr * 1.6))], fill=lerpc(SUN_HI, (255, 255, 255), 0.4))
+        for i in range(40):                                      # 麦穗尖上的反光
+            r_ = rng(i * 3)
+            x = sx + r_.uniform(-sr * 1.6, sr * 1.6); y = hz + dip + 2 + r_.random() ** 2 * 50
+            if math.sin(T * r_.uniform(2, 4) + i) > 0.55: d.point((x, y), fill=(255, 250, 220))
     if shimmer:
         a = np.asarray(img).copy()
         for y in range(int(hz - 6), int(hz + dip + 6)):
@@ -366,6 +438,7 @@ def _profile(s, rim_a):
     top = m & ~np.roll(m, 1, 0)
     for mm, col in ((rim, (255, 244, 190)), (top & ~rim, (255, 220, 140))):
         a[mm, :3] = (a[mm, :3] * (1 - rim_a) + np.array(col) * rim_a).astype(np.uint8)
+    fx.shade_arr(a, 1.0, -0.3, 0.32, None, dark=(110, 50, 60))
     im = outline(Image.fromarray(a), (60, 34, 40))
     return im
 
@@ -487,16 +560,32 @@ def sea(img, d, y0, y1, T, cols=((60, 150, 210), (40, 116, 186), (30, 90, 160)),
 def room(img, d, T, door=0.0, night=0.0, plant_bloom=1.0):
     """他的房间：左边一扇门，中间窗户和书桌，右边床和书架。door 0..1 是门开的程度。返回门洞的矩形"""
     dk = lambda c: lerpc(c, (24, 26, 56), 0.55 * night)
-    pix.sky(img, ((0, dk((236, 214, 182))), (1, dk((222, 196, 160)))), 0, 196)
+    pix.sky(img, ((0, dk((226, 204, 176))), (0.7, dk((236, 216, 186))), (1, dk((222, 196, 160)))), 0, 196)
     for x in range(8, W, 16):
-        d.line([(x, 0), (x, 195)], fill=dk((228, 204, 170)))
-        for y in range(10, 190, 24): d.point((x + 8, y), fill=dk((214, 150, 140)))
+        d.line([(x, 0), (x, 140)], fill=dk((228, 204, 170)))
+        for y in range(10, 136, 24):
+            d.point((x + 8, y), fill=dk((214, 150, 140))); d.point([(x + 7, y + 1), (x + 9, y + 1)], fill=dk((150, 176, 140)))
+    fx.tex(img, (0, 0, W, 140), 4, seed=11)
+    # 护墙板
+    d.rectangle([0, 140, W, 192], fill=dk((196, 150, 108)))
+    for x in range(0, W, 24):
+        d.rectangle([x + 3, 146, x + 20, 188], outline=dk((176, 130, 92)))
+        d.line([(x + 4, 147), (x + 19, 147)], fill=dk((214, 172, 128)))
+    d.rectangle([0, 138, W, 141], fill=dk((226, 190, 146))); d.line([(0, 142), (W, 142)], fill=dk((160, 116, 80)))
     d.rectangle([0, 192, W, 197], fill=dk((150, 104, 74)))
     pix.sky(img, ((0, dk((176, 122, 82))), (1, dk((140, 94, 62)))), 197, H)
     for y in range(204, H, 9): d.line([(0, y), (W, y)], fill=dk((128, 86, 58)))
     for k in range(14):
         y = 197 + (k % 7) * 9; x = (k * 71) % W
         d.line([(x, y + 1), (x, y + 8)], fill=dk((128, 86, 58)))
+    fx.tex(img, (0, 197, W, H), 5, seed=12, scale=1)
+    # 地毯
+    d.ellipse([150, 206, 370, 246], fill=dk((170, 80, 80)))
+    d.ellipse([158, 209, 362, 243], outline=dk((236, 200, 130)), width=2)
+    d.ellipse([186, 216, 334, 236], fill=dk((196, 106, 96)))
+    for k in range(10):
+        a = k / 10 * 2 * math.pi
+        d.point((260 + math.cos(a) * 60, 226 + math.sin(a) * 8), fill=dk((250, 220, 150)))
     # 窗
     wx0, wy0, wx1, wy1 = 236, 46, 336, 124
     d.rectangle([wx0 - 4, wy0 - 4, wx1 + 4, wy1 + 4], fill=dk((250, 244, 230)))
@@ -517,6 +606,13 @@ def room(img, d, T, door=0.0, night=0.0, plant_bloom=1.0):
         d.polygon([(cxs, wy0 - 8), (cxs + sgn * 16, wy0 - 8), (cxs + sgn * (10 + sw), wy1 + 10), (cxs, wy1 + 10)], fill=dk((150, 196, 170)))
         d.line([(cxs + sgn * 6, wy0 - 6), (cxs + sgn * (5 + sw / 2), wy1 + 8)], fill=dk((120, 170, 146)))
     d.rectangle([wx0 - 22, wy0 - 10, wx1 + 22, wy0 - 8], fill=dk((120, 84, 60)))
+    # 窗外照进来的一束光，落在地板上
+    beam = lerpc((255, 236, 180), (170, 190, 255), night)
+    tfill(img, 'polygon', [(wx0, wy0), (wx1, wy0), (wx1 + 70, H), (wx0 + 10, H)], beam, 0.12 + 0.04 * math.sin(T * 0.8))
+    glow(img, (wx0 + wx1) / 2, (wy0 + wy1) / 2, 70, beam, 0.25)
+    # 家具的影子
+    for x0_, x1_ in ((150, 200), (224, 350), (384, 480)):
+        fx.contact(img, (x0_ + x1_) / 2, 196, (x1_ - x0_) / 2 + 6, 0.35, h=4)
     # 书桌、台灯、书
     d.rectangle([224, 150, 350, 155], fill=dk((150, 100, 64))); d.rectangle([228, 155, 232, 194], fill=dk((120, 80, 52)))
     d.rectangle([342, 155, 346, 194], fill=dk((120, 80, 52))); d.rectangle([300, 156, 342, 176], fill=dk((140, 94, 60)))
@@ -553,12 +649,38 @@ def room(img, d, T, door=0.0, night=0.0, plant_bloom=1.0):
         a = -math.pi / 2 + (k - 2) * 0.45 + math.sin(T + k) * 0.05
         d.line([(px_, 176), (px_ + math.cos(a) * 18, 176 + math.sin(a) * 18)], fill=dk((70, 150, 80)), width=2)
         if plant_bloom > 0 and k % 2 == 0:
-            fx, fy = px_ + math.cos(a) * 19, 176 + math.sin(a) * 19
+            flx, fly = px_ + math.cos(a) * 19, 176 + math.sin(a) * 19
             r_ = 2 * plant_bloom
-            d.ellipse([fx - r_, fy - r_, fx + r_, fy + r_], fill=dk((255, 150, 170)))
+            d.ellipse([flx - r_, fly - r_, flx + r_, fly + r_], fill=dk((255, 150, 170)))
     props.clock(d, 196, 36, 12, T * 0.05, T * 0.6, rim=dk((150, 100, 64)))
+    # 杯子冒着热气
+    d.rectangle([258, 142, 264, 149], fill=dk((250, 246, 236))); d.point((265, 145), fill=dk((250, 246, 236)))
+    for k in range(3):
+        u = (T * 0.6 + k / 3) % 1
+        d.point((261 + math.sin(u * 6 + k) * 1.5, 140 - u * 12), fill=dk(lerpc((255, 255, 255), (236, 214, 182), u)))
+    # 门上方的软木板，钉着几张小照片
+    d.rectangle([118, 24, 146, 60], fill=dk((150, 100, 64))); d.rectangle([120, 26, 144, 58], fill=dk((196, 150, 100)))
+    for k, (px_, py_, c) in enumerate(((122, 28, (120, 180, 230)), (132, 34, (255, 200, 120)), (123, 44, (240, 150, 160)))):
+        d.rectangle([px_, py_, px_ + 9, py_ + 10], fill=dk((250, 246, 236))); d.rectangle([px_ + 1, py_ + 1, px_ + 8, py_ + 7], fill=dk(c))
+        d.point((px_ + 4, py_), fill=dk((230, 70, 70)))
+    # 吊兰
+    d.line([(436, 0), (436, 22)], fill=dk((120, 90, 70)))
+    d.polygon([(428, 22), (444, 22), (441, 32), (431, 32)], fill=dk((220, 140, 100)))
+    for k in range(6):
+        sx_ = 430 + k * 2.5
+        pts = [(sx_ + math.sin(T * 0.8 + k + j * 0.4) * 1.5 + (j * (k - 2.5) * 0.7), 30 + j * 5) for j in range(6 + k % 3)]
+        d.line(pts, fill=dk((80, 160, 90)))
+        for j, (qx, qy) in enumerate(pts[1::2]): d.point((qx + 1, qy), fill=dk((120, 196, 110)))
     d.rectangle([370, 40, 410, 90], fill=dk((250, 244, 230))); d.rectangle([373, 43, 407, 87], fill=dk((255, 200, 120)))
     d.ellipse([382, 52, 398, 68], fill=dk((255, 236, 170))); d.rectangle([373, 72, 407, 87], fill=dk((220, 150, 80)))
+    # 墙顶的一串小灯
+    pts = [(x, 8 + 10 * math.sin(math.pi * ((x - 10) % 120) / 120)) for x in range(10, 472, 4)]
+    d.line(pts, fill=dk((90, 70, 60)))
+    for k, (bx, by) in enumerate(pts[::4]):
+        c = ((255, 214, 120), (255, 160, 150), (180, 220, 255))[k % 3]
+        on = 0.6 + 0.4 * math.sin(T * 2 + k * 1.3)
+        glow(img, bx, by + 3, 7, c, (0.2 + 0.4 * night) * on)
+        d.rectangle([bx - 1, by + 2, bx, by + 4], fill=lerpc(dk(c), c, 0.5 + 0.5 * night))
     # 门
     dx0, dy0, dx1, dy1 = 50, 84, 106, 194
     d.rectangle([dx0 - 5, dy0 - 5, dx1 + 5, dy1], fill=dk((250, 244, 230)))
@@ -574,6 +696,7 @@ def room(img, d, T, door=0.0, night=0.0, plant_bloom=1.0):
         d.rectangle([dx0 + 6, dy0 + 8, dx1 - 6, dy0 + 48], outline=dk((140, 94, 60)))
         d.rectangle([dx0 + 6, dy0 + 58, dx1 - 6, dy1 - 10], outline=dk((140, 94, 60)))
         d.ellipse([dx1 - 10, dy0 + 54, dx1 - 6, dy0 + 58], fill=dk((230, 196, 110)))
+    if night < 0.5: fx.motes(img, d, T, 26, (wx0, wy0, wx1 + 70, H), (255, 246, 210), seed=4, drift=(3, 2), glow_a=0.15)
     return (dx0, dy0, dx1, dy1)
 
 
@@ -725,10 +848,20 @@ def cupped_hands(img, d, cx, base, s=1.0, sleeve=pix.SKY_T):
         d.polygon([(px + sg, py) for px, py in palm], fill=OUT)
         d.polygon(palm, fill=SKIN)
         for k in range(3):
-            fx = cx + sg * S(16 + k * 12)
-            d.line([(fx, base - S(68)), (fx + sg * S(2), base - S(58))], fill=SKIN_S)
+            fgx = cx + sg * S(16 + k * 12)
+            d.line([(fgx, base - S(68)), (fgx + sg * S(2), base - S(58))], fill=SKIN_S)
         d.line([(cx + sg * S(8), base - S(46)), (cx + sg * S(40), base - S(44))], fill=SKIN_S)
     return (cx, base - S(60))
+
+
+def lit_bust(img, who, cx, top, s=4, expr='smile', light=(1, -0.4), rim=(255, 220, 160), amt=0.3, age='young'):
+    """带明暗和边缘光的特写胸像，返回两只眼睛的位置"""
+    out = {}
+
+    def draw(l, ld): out['eyes'] = props.bust(l, ld, who, cx, top, s, expr=expr, age=age)
+    lay = fx.lit_layer(draw, light, amt, rim)
+    img.paste(lay, (0, 0), lay)
+    return out['eyes']
 
 
 def old_man(img, d, x, y, view='side', pose='stand', ph=0, flip=False, s=1, cane=True, expr='smile', shade=None, alpha=1.0):

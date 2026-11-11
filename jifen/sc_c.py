@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw
 import pix
 import props
 import motifs
+import fx
 from pix import (W, H, FONT, FONT_S, OUT, SKIN, SKIN_S, clamp, lerp, lerpc, ease, eout, ein, eback, span, glow, tfill, blend_box, rng)
 from props import dpaste, person_s, mix_stops, shots, CREAM, GOLD, GOLD_L, PINK, PINK_L
 from motifs import GOLD_SKY, DUSK_SKY, DAWN_SKY, NIGHT_SKY, NOON_SKY, PLAIN_GOLD, PLAIN_NIGHT, PIECE
@@ -37,9 +38,16 @@ def _world(img, d, off, T):
     for i in range(4):
         x = (i * 150 - off * 0.15) % (W + 120) - 80
         pix.cloud(d, x, 26 + (i % 2) * 22, 2, (255, 255, 255), (220, 236, 250))
+    for i in range(4):
+        x = (i * 170 - off * 0.1) % (W + 200) - 100
+        d.polygon([(x - 90, 208), (x, 110 + (i % 2) * 20), (x + 90, 208)], fill=(150, 190, 230))
+        d.polygon([(x - 14, 140 + (i % 2) * 20), (x, 110 + (i % 2) * 20), (x + 14, 140 + (i % 2) * 20)], fill=(250, 252, 255))
     for i in range(5):
         x = (i * 130 - off * 0.35) % (W + 160) - 80
         d.ellipse([x - 70, 150, x + 70, 260], fill=(110, 190, 110)); d.ellipse([x - 50, 160, x + 10, 200], fill=(140, 210, 130))
+    for i in range(7):
+        x = (i * 90 - off * 0.6) % (W + 120) - 60
+        pix.tree_round(d, x, 210, 0.8, (60, 150, 80), (100, 190, 100), (110, 74, 50))
     for i in range(-1, W // 16 + 2):
         x = i * 16 - off % 16
         d.rectangle([x, 208, x + 15, H], fill=(176, 110, 60))
@@ -47,8 +55,8 @@ def _world(img, d, off, T):
         d.point([(x + 4, 220), (x + 11, 230), (x + 6, 244), (x + 13, 256)], fill=(140, 84, 46))
         d.line([(x, 208), (x, H)], fill=(150, 92, 50))
     for k in range(-1, 12):
-        fx = (k * 53 - off) % (W + 53) - 20
-        pix.flower(d, fx, 208, ((255, 120, 150), (255, 230, 90), (255, 255, 255))[k % 3], 0, h=4)
+        flx = (k * 53 - off) % (W + 53) - 20
+        pix.flower(d, flx, 208, ((255, 120, 150), (255, 230, 90), (255, 255, 255))[k % 3], 0, h=4)
     for px, py, n in PLAT:
         x0 = px - off
         if x0 > W + 10 or x0 + n * 16 < -10: continue
@@ -121,7 +129,10 @@ def photos():
 
 def _pie_bg(img, d, T, warm=1.0):
     pix.sky(img, mix_stops(((0, (30, 24, 60)), (1, (70, 46, 90))), ((0, (90, 60, 110)), (0.6, (210, 130, 140)), (1, (255, 196, 150))), warm))
+    fx.sunset_clouds(img, d, T, HC[0], 290, 1.0, seed=2, n=4, top=20)
     props.bokeh(img, T, 16, ((255, 200, 120), (255, 150, 170), (150, 200, 255)), seed=8, a=0.22)
+    fx.godrays(img, HC[0], HC[1], T, 16, (255, 226, 200), 0.06, spread=2 * math.pi, length=380, pulse=0.03 * props.thump(T))
+    fx.motes(img, ImageDraw.Draw(img), T, 40, (0, 0, W, H), (255, 236, 210), seed=15, drift=(2, -5))
 
 
 def s_memories(img, d, lt, dur, T, amp):
@@ -189,7 +200,11 @@ def s_complete(img, d, lt, dur, T, amp):
     S = 5
     x0, y0 = 240 - pix.CX * S, 238 - pix.FY * S
     done = sum(1 for p in data if p[3] < lt) / max(1, len(data))
+    motifs.milky_way(img, T, 0.4); d = ImageDraw.Draw(img)
+    fx.godrays(img, 240, 140, T, 18, (255, 220, 180), 0.03 + 0.05 * done, spread=2 * math.pi, length=360)
     glow(img, 240, 140, 90 + 60 * done, (255, 210, 160), 0.2 + 0.35 * done)
+    glow(img, 240, 240, 120, (255, 200, 160), 0.3 * done, ry=10)
+    fx.motes(img, d, T, 40, (0, 0, W, H), (255, 220, 200), seed=16, drift=(0, -6), glow_a=0.3)
     big = im.resize((im.width * S, im.height * S), Image.NEAREST)
     img.paste(big, (x0, y0), big)
     d = ImageDraw.Draw(img)
@@ -201,9 +216,9 @@ def s_complete(img, d, lt, dur, T, amp):
             f = (lt - (ta - 0.8)) / 0.8
             if 0 <= f < 1:                                     # 正飞过来的小方块
                 e = eout(f)
-                fx, fy = lerp(sx, px, e), lerp(sy, py, e) + math.sin(f * 7 + x) * 8 * (1 - e)
+                qx, qy = lerp(sx, px, e), lerp(sy, py, e) + math.sin(f * 7 + x) * 8 * (1 - e)
                 d.point((lerp(sx, px, max(0, e - 0.08)) + 2, lerp(sy, py, max(0, e - 0.08)) + 2), fill=lerpc(gc, (30, 26, 60), 0.5))
-                d.rectangle([fx, fy, fx + S - 1, fy + S - 1], fill=gc)
+                d.rectangle([qx, qy, qx + S - 1, qy + S - 1], fill=gc)
         elif lt < ta + 0.3:
             d.rectangle([px, py, px + S - 1, py + S - 1], fill=lerpc((255, 255, 255), col, (lt - ta) / 0.3))
     # 胸口一颗小小的心，八块里亮着七块
@@ -212,10 +227,23 @@ def s_complete(img, d, lt, dur, T, amp):
 
 # ---------------------------------------------------------------- 17 也是因为你
 def s_because(img, d, lt, dur, T, amp):
+    fx.LIGHT = ((0.3, -1), (255, 240, 220))
     pix.sky(img, ((0, (250, 180, 190)), (0.6, (255, 214, 190)), (1, (255, 236, 210))))
+    glow(img, 240, 200, 200, (255, 236, 200), 0.5)
+    for i in range(5):
+        fx.cumulus(d, 40 + i * 100 - lt * 3, 40 + (i % 2) * 24, 1.3, (255, 226, 226), (255, 244, 236), (236, 180, 196), (255, 255, 250),
+                   1 if i < 2 else -1, seed=30 + i)
+    fx.godrays(img, 240, 200, T, 12, (255, 246, 230), 0.06, spread=math.pi * 1.1, length=340)
     props.bokeh(img, T, 12, ((255, 240, 220), (255, 200, 210)), seed=6, a=0.35)
     d = ImageDraw.Draw(img)
-    d.rectangle([0, 214, W, H], fill=(246, 196, 170))
+    pix.sky(img, ((0, (226, 220, 160)), (1, (170, 196, 120))), 214, H)
+    fx.tex(img, (0, 214, W, H), 7, seed=71, scale=2)
+    for x in range(0, W, 3):
+        d.line([(x, 216 + (x * 5) % 4), (x + 1, 211 + (x * 5) % 4)], fill=(196, 214, 140))
+    for k in range(24):
+        r = rng(k)
+        pix.flower(d, r.uniform(0, W), r.uniform(220, 262), ((255, 160, 180), (255, 236, 120), (255, 255, 255))[k % 3], k % 3, h=2)
+    fx.contact(img, 160, 236, 26, 0.35); fx.contact(img, 320, 236, 26, 0.35)
     person_s(img, 'boy', 160, 236, 3, view='front', expr='happy')
     person_s(img, 'girl', 320, 236, 3, view='front', arms='flowers', expr='happy')
     for i in range(30):                                        # 她手心里吹出来的光点，飞向他
@@ -225,15 +253,20 @@ def s_because(img, d, lt, dur, T, amp):
         d.rectangle([x, y, x + 1, y + 1], fill=c)
     glow(img, 160, 172, 22, (255, 220, 160), 0.5 + 0.2 * props.thump(T))
     pix.put(img, 'heart', 240, 112 - 4 * math.sin(T * 3), 2, alpha=span(lt, 0.8, 1.2))
+    glow(img, 240, 52, 40, (255, 230, 200), 0.4)
     motifs.heart_pie(img, 240, 52, 1.4, [1] * 7 + [0], pop=[0] * 7 + [0])
+    fx.motes(img, d, T, 30, (0, 0, W, 220), (255, 250, 230), seed=17)
+    fx.fg(img, T, 'flowers', (120, 140, 80), (255, 240, 220), (0, 1), 3, seed=18)
 
 
 # ---------------------------------------------------------------- 18 某一天你离开了我的生命
 def s_leave(img, d, lt, dur, T, amp):
     door = ease(span(lt, 1.2, 1.8)) * (1 - ease(span(lt, 4.6, 5.4)))
     bloom = 1 - ease(span(lt, 2.6, 5.0))
+    fx.LIGHT = ((1, -0.5), (255, 236, 190))
     dx0, dy0, dx1, dy1 = motifs.room(img, d, T, door=door, plant_bloom=bloom)
     base = 196
+    fx.contact(img, 290, base, 18, 0.35)
     if lt > 3.0:
         for i in range(6):                                     # 花瓣落下来
             r = rng(i)
@@ -268,7 +301,10 @@ def _sepia_heart(img, d, t, T):
     turns = [b - t_start for b in props.beats_in(t_start + 0.4, t_start + 5.6)][:7]
     while len(turns) < 7: turns.append(turns[-1] + 0.8 if turns else 0.5)
     sep = [ease(span(t, tt, tt + 0.6)) for tt in turns] + [0]
+    motifs.milky_way(img, T, 0.6); d = ImageDraw.Draw(img)
     glow(img, cx, cy, 100, (255, 200, 150), 0.25)
+    fx.godrays(img, cx, cy, T, 14, (255, 220, 170), 0.04, spread=2 * math.pi, length=300)
+    fx.motes(img, d, T, 30, (0, 0, W, H), (255, 220, 160), seed=19, drift=(1, -4))
     cents = motifs.pie_centers(cx, cy, s)
     motifs.heart_pie(img, cx, cy, s, [1] * 7 + [0], photos=photos(), sepia=sep)
     for k, tt in enumerate(turns):                             # 变旧的那一块飘出几颗金色的火星
@@ -281,10 +317,17 @@ def _sepia_heart(img, d, t, T):
 
 
 def _fall_home(img, d, t, T):
+    fx.LIGHT = ((1, -1), (190, 210, 255))
     motifs.sun_plain(img, d, T, sky=NIGHT_SKY, sx=240, sy=300, sr=40, hz=176, dip=0, plain=PLAIN_NIGHT, road=True, shimmer=False,
-                     sun_a=0, birds=False)
+                     sun_a=0, birds=False, clouds=False)
+    motifs.milky_way(img, T, 0.5); d = ImageDraw.Draw(img)
     pix.stars(d, T, 170, 1.0, 200)
+    glow(img, 400, 40, 40, (220, 230, 255), 0.35)
     pix.moon(d, 400, 40, 10)
+    for i in range(3):
+        fx.stratus(d, 40 + i * 150, 60 + i * 22, 120, T, (50, 46, 96), (150, 160, 220), seed=40 + i, speed=1.5, below=False)
+    pix.fireflies(img, d, T, 14, (0, 180, W, 260), seed=7)
+    fx.contact(img, 240, 214, 16, 0.4)
     f = ease(span(t, 0.4, 3.6))
     x, y = lerp(240, 240, f), lerp(60, 182, f)
     s = lerp(1.6, 0.3, f)
@@ -295,6 +338,7 @@ def _fall_home(img, d, t, T):
     person_s(img, 'boy', 240, 214, 2, view='back', shade=(0.7, 0.7, 0.9))
     k = span(t, 3.4, 4.4)
     if k > 0: glow(img, 240, 184, 16 + 6 * math.sin(T * 2), (255, 210, 140), 0.55 * k)
+    fx.fg(img, T, 'grass', (24, 22, 40), (150, 160, 220), (0, 1), 3, seed=20, h=1.0)
 
 
 def s_once(img, d, lt, dur, T, amp):
@@ -303,7 +347,11 @@ def s_once(img, d, lt, dur, T, amp):
 
 # ---------------------------------------------------------------- 20 感觉你贴着我胸口呼吸
 def s_breath(img, d, lt, dur, T, amp):
+    fx.LIGHT = ((-1, -0.6), (200, 214, 255))
     pix.sky(img, ((0, (26, 30, 66)), (1, (40, 40, 80))), 0, 204)
+    for x in range(10, W, 18):
+        for y in range(10, 200, 20): d.point((x + (y // 20 % 2) * 9, y), fill=(48, 50, 92))
+    fx.tex(img, (0, 0, W, 204), 4, seed=81)
     wx0, wy0, wx1, wy1 = 40, 24, 196, 150
     d.rectangle([wx0 - 5, wy0 - 5, wx1 + 5, wy1 + 5], fill=(60, 60, 96))
     win = pix.vgrad(wx1 - wx0, wy1 - wy0, ((0, (14, 16, 50)), (1, (50, 50, 110))), 5).copy()
@@ -315,8 +363,19 @@ def s_breath(img, d, lt, dur, T, amp):
     d.line([((wx0 + wx1) / 2, wy0), ((wx0 + wx1) / 2, wy1)], fill=(60, 60, 96), width=3)
     d.line([(wx0, (wy0 + wy1) / 2), (wx1, (wy0 + wy1) / 2)], fill=(60, 60, 96), width=3)
     sw = math.sin(T * 0.9) * 3
-    d.polygon([(wx1 + 4, wy0 - 10), (wx1 + 24, wy0 - 10), (wx1 + 18 + sw, wy1 + 30), (wx1 + 4, wy1 + 30)], fill=(90, 80, 130))
+    d.rectangle([wx0 - 10, wy1 + 4, wx1 + 10, wy1 + 9], fill=(80, 80, 120)); d.line([(wx0 - 10, wy1 + 4), (wx1 + 10, wy1 + 4)], fill=(150, 160, 210))
+    d.polygon([(70, wy1 + 4), (84, wy1 + 4), (82, wy1 - 6), (72, wy1 - 6)], fill=(70, 56, 80))
+    for k in range(5):
+        a = -math.pi / 2 + (k - 2) * 0.5 + math.sin(T * 0.7 + k) * 0.05
+        d.line([(77, wy1 - 6), (77 + math.cos(a) * 16, wy1 - 6 + math.sin(a) * 16)], fill=(40, 60, 70), width=2)
+    for side, cxs in ((-1, wx0 - 6), (1, wx1 + 6)):
+        d.polygon([(cxs, wy0 - 10), (cxs + side * 22, wy0 - 10), (cxs + side * (16 + sw), wy1 + 34), (cxs, wy1 + 34)], fill=(90, 80, 130))
+        for j in range(3): d.line([(cxs + side * (5 + j * 6), wy0 - 8), (cxs + side * (4 + j * 5 + sw * 0.5), wy1 + 32)], fill=(70, 62, 110))
+        d.line([(cxs, wy0 - 10), (cxs, wy1 + 34)], fill=(150, 150, 210))
+    d.rectangle([wx0 - 30, wy0 - 14, wx1 + 30, wy0 - 11], fill=(60, 56, 80))
     pix.sky(img, ((0, (50, 40, 60)), (1, (30, 26, 44))), 204, H)
+    for y in range(210, H, 8): d.line([(0, y), (W, y)], fill=(40, 32, 50))
+    fx.tex(img, (0, 204, W, H), 5, seed=82)
     tfill(img, 'polygon', [(wx0, wy1), (wx1, wy1), (420, H), (230, H)], (190, 210, 255), 0.14)
     tfill(img, 'polygon', [(wx0, wy0), (wx1, wy0), (wx1, wy1), (wx0, wy1)], (190, 210, 255), 0.05)
     d.rectangle([300, 150, W, 214], fill=(70, 60, 100)); d.rectangle([300, 140, W, 160], fill=(150, 150, 200))
@@ -337,3 +396,4 @@ def s_breath(img, d, lt, dur, T, amp):
     glow(img, 352, 190, 40, (255, 210, 150), 0.25 * a)
     dpaste(img, im, 352 - im.width / 2 + 6, 236 - im.height + 22 + round(breath), a)
     glow(img, 326, 184, 16 + 12 * breath, (255, 200, 140), 0.3 + 0.35 * breath)
+    fx.motes(img, d, T, 30, (60, 140, 420, H), (210, 220, 255), seed=21, drift=(2, -1), glow_a=0.2)

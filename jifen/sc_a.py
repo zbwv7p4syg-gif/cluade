@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 import pix
 import props
 import motifs
+import fx
 from pix import (W, H, FONT, FONT_S, OUT, SKIN, clamp, lerp, lerpc, ease, eout, ein, eback, span, glow, tfill, blend_box, rng, tri)
 from props import dpaste, person_s, mix_stops, shots, CREAM, GOLD, GOLD_L, PINK, PINK_L
 from motifs import GOLD_SKY, DUSK_SKY, DAWN_SKY, NIGHT_SKY, NOON_SKY, PLAIN_GOLD, PLAIN_DAWN
@@ -74,6 +75,23 @@ def dark_bg(img, d, T, a=1.0, grid=0.0):
         for y in range(150 % 16, H, 16):
             for x in range(0, W, 2): d.point((x, y), fill=c)
     pix.stars(d, T, H, 0.6 * a, 120, base=(14, 12, 36))
+    if a > 0:
+        for i, (x, y, rr, c) in enumerate(((90, 60, 150, (70, 40, 120)), (400, 210, 170, (40, 60, 130)), (260, 20, 120, (110, 50, 110)))):
+            glow(img, x + 14 * math.sin(T * 0.15 + i), y, rr, c, 0.3 * a, ry=rr * 0.6, power=1.0)
+        # 方格纸上用粉笔写的一个个分数，淡淡地往上漂
+        r = rng(77)
+        for i in range(16):
+            num, den = r.choice(('1', '2', '3', '5', '7', '?')), r.choice(('2', '3', '4', '8', '?'))
+            x = r.uniform(20, W - 20); y = (r.uniform(0, H + 40) - T * r.uniform(2, 5)) % (H + 40) - 20
+            if abs(x - W / 2) < 90 and 80 < y < 220: continue
+            al = a * (0.18 + 0.14 * math.sin(T * 0.8 + i))
+            c = (150, 140, 210)
+            pix.text(img, num, x, y - 8, col=c, out=None, font=FONT_S, alpha=al, shadow=False)
+            blend_box(img, (int(x - 5), int(y), int(x + 5), int(y) + 1), c, np.full((1, 10), al * 1.6))
+            pix.text(img, den, x, y + 8, col=c, out=None, font=FONT_S, alpha=al, shadow=False)
+        motes_on = a
+        import fx as _fx
+        _fx.motes(img, d, T, 30, (0, 0, W, H), (200, 190, 255), seed=31, drift=(1, -3), glow_a=0.15 * a)
 
 
 def s_intro(img, d, lt, dur, T, amp):
@@ -167,6 +185,7 @@ s_intro.no_sub = True
 def s_sun(img, d, lt, dur, T, amp):
     dip = int(round(6 + 7 * ease(span(lt, 0.4, 4.5))))
     sy = 168 + 4 * ease(span(lt, 0.4, 4.5))
+    fx.LIGHT = ((0.2, -1), (255, 226, 160))
     hf = motifs.sun_plain(img, d, T, sx=290, sy=sy, sr=78, hz=176, dip=dip, glow_a=0.6)
     for x, s_ in ((60, 0.9), (96, 0.6)):
         pix.tree_round(d, x, hf(x) + 1, s_, (130, 84, 70), (160, 104, 80), (100, 64, 56))
@@ -175,6 +194,8 @@ def s_sun(img, d, lt, dur, T, amp):
     person_s(img, 'boy', 290, 230, 2, view='back', shade=(0.86, 0.8, 0.82))
     for i in range(0, W, 6):
         motifs.wheat(d, i + 3 * math.sin(i), H - 1 - (i % 4) * 3, 16 + (i * 7) % 9, T, wind=0.8, ph=i)
+    fx.motes(img, d, T, 34, (0, 60, W, 240), (255, 236, 180), seed=1, drift=(5, -2))
+    fx.fg(img, T, 'wheat', (70, 40, 34), (255, 200, 120), (0, 1), 3, seed=2, h=1.2)
     # 回忆的样子：开头是旧照片的颜色，四角暗下来，慢慢变成彩色
     k = 1 - ease(span(lt, 0.3, 1.8))
     if k > 0:
@@ -184,6 +205,7 @@ def s_sun(img, d, lt, dur, T, amp):
 
 # ---------------------------------------------------------------- 2 风慢慢吹 没有人掉眼泪
 def _fence(img, d, t, T):
+    fx.LIGHT = ((-1, -0.4), (255, 222, 150))
     motifs.sun_plain(img, d, T, sky=GOLD_SKY, sx=110, sy=150, sr=40, hz=168, dip=2, road=False, grass_on=False, birds=False)
     pix.hills(d, 214, 6, 0.012, 1.0, (190, 160, 70))
     pix.hills(d, 222, 5, 0.02, 2.0, (150, 140, 60))
@@ -204,7 +226,18 @@ def _fence(img, d, t, T):
     for i, (w_, age, x, ex) in enumerate(who):
         bob = round(props.thump(T + i * 0.12, 0.3) * 2)
         person_s(img, w_, x, rail + 18 - bob, 2, age, view='front', pose='sit', expr=ex)
+    # 右边一棵离镜头很近的大树，叶子被夕阳照亮一边
+    d.rectangle([446, 60, 462, H], fill=(70, 46, 40)); d.line([(447, 60), (447, H)], fill=(160, 104, 70))
+    for bx, by, br in ((430, 40, 34), (470, 20, 36), (400, 10, 26), (460, 70, 28)):
+        sw = math.sin(T * 1.2 + bx) * 1.5
+        d.ellipse([bx - br + sw, by - br, bx + br + sw, by + br], fill=(60, 96, 60))
+    for bx, by, br in ((430, 40, 34), (470, 20, 36), (400, 10, 26), (460, 70, 28)):
+        sw = math.sin(T * 1.2 + bx) * 1.5
+        d.ellipse([bx - br + sw, by - br, bx - br * 0.2 + sw, by + br * 0.4], fill=(170, 170, 80))
+        d.arc([bx - br + sw, by - br, bx + br + sw, by + br], 150, 230, fill=(255, 214, 120))
     motifs.seeds(img, d, T, 26, (0, 40, W, 200), wind=34, seed=4)
+    fx.motes(img, d, T, 24, (0, 40, 300, 220), (255, 236, 180), seed=2)
+    fx.fg(img, T, 'grass', (60, 70, 40), (255, 210, 120), (0,), 3, seed=4, h=1.1)
 
 
 def _wind_face(img, d, t, T):
@@ -212,7 +245,8 @@ def _wind_face(img, d, t, T):
     glow(img, 400, 150, 160, motifs.SUN_MID, 0.6)
     glow(img, 400, 150, 60, motifs.SUN_HI, 0.5)
     props.bokeh(img, T, 10, (GOLD_L, (255, 200, 150), (255, 236, 200)), seed=3, a=0.25)
-    eyes = props.bust(img, d, 'boy', 236, 52, 4, expr='happy')
+    fx.godrays(img, 400, 150, T, 8, (255, 236, 190), 0.06, spread=math.pi * 0.9, center=math.pi, length=380)
+    eyes = motifs.lit_bust(img, 'boy', 236, 52, 4, 'happy', (1, -0.4), (255, 222, 150))
     # 风把头发吹得一翘一翘
     for k in range(5):
         bx, by = 200 + k * 9, 52 + (k % 2) * 3
@@ -225,6 +259,7 @@ def _wind_face(img, d, t, T):
         x = lerp(150, 330, k); y = eyes[0][1] + 18 + 8 * math.sin(k * 6)
         d.point((x, y), fill=(255, 255, 255)); d.point([(x - 1, y - 1), (x + 1, y - 1), (x, y - 2)], fill=(240, 236, 220))
         if 0.35 < k < 0.6: pix.twinkle(d, int(eyes[0][0]), int(eyes[0][1] + 12), (k - 0.35) / 0.25, (255, 255, 255), 3)
+    fx.fg(img, T, 'leaves', (40, 60, 44), (255, 210, 130), (0,), 3, seed=6)
 
 
 def s_wind(img, d, lt, dur, T, amp):
@@ -251,14 +286,18 @@ def _lying(img, d, t, T):
     img.paste(_meadow().crop((int(-ox + 20), int(-oy + 20), int(-ox + 20) + W, int(-oy + 20) + H)))
     pix.grade(img, mul=(1.06, 0.98, 0.86), add=(16, 6, -6))
     # 他躺在草地上（从正上方往下看），两手张开
+    fx.LIGHT = ((-0.8, -1), (255, 236, 180))
+    fx.contact(img, 242, 190, 26, 0.3, (40, 60, 30), 6)
     person_s(img, 'boy', 240, 190, 2, view='front', arms='spread', expr='closed')
-    for i in range(3):                                         # 云影从草地上滑过
-        cx = (i * 190 + t * 22) % (W + 200) - 100
-        m = (((XX - cx) / 70) ** 2 + ((YY - (60 + i * 70)) / 34) ** 2) < 1
-        blend_box(img, (0, 0, W, H), (40, 60, 40), m * 0.13)
+    for i in range(14):                                        # 树叶缝里漏下来的光斑
+        r = rng(i * 5)
+        cx = (r.uniform(0, W) + t * 3) % W; cy = r.uniform(0, H)
+        rr = r.uniform(6, 14) * (0.85 + 0.15 * math.sin(T * 1.5 + i))
+        glow(img, cx, cy, rr, (255, 246, 200), 0.3, ry=rr * 0.6, power=0.6)
     pix.petals(d, T, 26, seed=3, wind=16, speed=14)
     for i in range(3):
         pix.butterfly(d, int(120 + i * 110 + 20 * math.sin(T + i)), int(60 + i * 40 + 10 * math.cos(T * 1.3 + i)), T, ((255, 200, 120), (255, 170, 200), (200, 220, 255))[i], i)
+    fx.fg(img, T, 'flowers', (60, 110, 50), (255, 240, 180), (0, 1), 3, seed=8)
 
 
 def _hill_sunset(img, d, t, T, sky=GOLD_SKY):
@@ -271,6 +310,7 @@ def _hill_sunset(img, d, t, T, sky=GOLD_SKY):
 
 
 def _speechless(img, d, t, T):
+    fx.LIGHT = ((1, -0.3), (255, 222, 150))
     _hill_sunset(img, d, t, T)
     expr = 'surprised' if 0.6 < t < 2.4 else 'smile'
     person_s(img, 'boy', 140, 194, 2, view='side', pose='sit', expr=expr)
@@ -285,16 +325,25 @@ def _speechless(img, d, t, T):
             pix.glow(img, x, y, 5, GOLD_L, 0.5 * clamp(1 - k / 2.5))
             d.point((x, y), fill=(255, 250, 200))
     pix.fireflies(img, d, T, 8, (200, 150, 470, 230), seed=2)
+    fx.motes(img, d, T, 20, (180, 80, W, 220), (255, 236, 180), seed=5)
+    fx.fg(img, T, 'grass', (80, 50, 40), (255, 200, 120), (1,), 3, seed=9, h=1.2)
 
 
 def _dusk(img, d, t, T):
     f = span(t, 0, 3.0)
     pix.sky(img, mix_stops(DUSK_SKY, NIGHT_SKY, f))
     pix.stars(d, T, 190, span(t, 0.6, 3.4), 200)
+    motifs.milky_way(img, T, 0.5 * span(t, 1.0, 3.8)); d = ImageDraw.Draw(img)
     glow(img, 380, 190, 120, (255, 150, 120), 0.4 * (1 - f))
+    fx.mountains(img, 200, [(4, 40, 0.6, lerpc((90, 70, 110), (30, 28, 60), f)), (6, 22, 0.55, lerpc((70, 50, 80), (22, 20, 46), f))])
+    for i in range(18):                                        # 远处小镇的灯
+        r = rng(i)
+        x = 230 + r.uniform(0, 240); y = 196 + r.uniform(0, 6) + (x - 230) * 0.05
+        if math.sin(T * 0.8 + i) > -0.6: d.point((x, y), fill=lerpc((120, 90, 80), (255, 210, 140), span(t, 0.5, 2)))
     d.polygon([(0, 196), (60, 186), (160, 184), (260, 200), (330, 228), (W, 240), (W, H), (0, H)], fill=lerpc((90, 60, 60), (24, 20, 40), f))
     person_s(img, 'boy', 140, 194, 1, view='side', pose='sit', expr='smile', shade=(0.3, 0.3, 0.45))
     if t > 1.6: pix.meteor(d, t, 1.8, 360, 30, -120, 60, 1.0)
+    pix.fireflies(img, d, T, 10, (0, 150, 300, 240), seed=6)
     k = span(t, 3.2, 4.8)
     if k > 0:                                                  # 右边慢慢亮起一点金光
         glow(img, W + 6, 150, 120 * k, motifs.SUN_MID, 0.6 * k)
@@ -315,17 +364,18 @@ def _profile(img, d, t, T):
         x, y = lerp(440, 60, u), lerp(100, 230, u)
         glow(img, x, y, 6 + i * 3, (255, 236, 190), 0.22)
     props.bokeh(img, T, 12, ((255, 236, 180), (255, 200, 140), (255, 250, 220)), seed=7, a=0.22, rmin=4, rmax=12)
+    fx.godrays(img, 440, 100, T, 9, (255, 240, 200), 0.07, spread=math.pi * 0.8, center=math.pi * 0.85, length=460)
     motifs.profile(img, d, 150 + t * 3, 2, 1.3, T, 1.0)
-    r = rng(5)
-    for i in range(40):                                        # 阳光里飘着的灰尘
-        x = (r.uniform(0, W) + T * 6) % W; y = (r.uniform(0, H) - T * 4) % H
-        if math.sin(T * 2 + i) > 0: d.point((x, y), fill=(255, 246, 200))
+    fx.motes(img, d, T, 50, (0, 0, W, H), (255, 246, 210), seed=3, drift=(6, -4), glow_a=0.3)
+    fx.fg(img, T, 'leaves', (44, 56, 44), (255, 200, 140), (0,), 3, seed=3)
 
 
 def _shoes(img, d, t, T):
     pix.sky(img, ((0, (240, 190, 110)), (0.5, (220, 170, 90)), (1, (200, 150, 80))), 0, 150)
     props.bokeh(img, T, 10, ((255, 230, 160), (255, 210, 120)), seed=2, a=0.3, box=(0, 0, W, 150))
     pix.sky(img, ((0, (232, 200, 140)), (1, (210, 170, 110))), 150, H)
+    fx.tex(img, (0, 150, W, H), 7, seed=21, scale=2)
+    glow(img, 470, 10, 160, (255, 236, 170), 0.5)
     period = 0.836
     step = 70
     v = step / (period / 2)
@@ -349,6 +399,7 @@ def _shoes(img, d, t, T):
             for q in range(5):
                 d.point((x - 10 - q * 4, base - 2 - q % 2 - p * 60), fill=(255, 230, 170))
         far = ((t / period) + j * 0.5) % 1 >= 0.5
+        fx.contact(img, x, base + 1, 44 - lift, 0.45 * (1 - lift / 30), (120, 80, 50), 5)
         motifs.big_shoe(img, d, x - 40, base - lift - (8 if far else 0), 4, False, leg=200)
         if p < 0.5 and int(T * 6 + j) % 3 == 0:
             pix.twinkle(d, int(x + 6), int(base - 40), (T * 3 + j) % 1, (255, 255, 255), 4)
@@ -356,6 +407,8 @@ def _shoes(img, d, t, T):
     sw = math.sin(t / period * math.pi * 2) * 4
     d.polygon([(150 + sw, 0), (330 + sw, 0), (322 - sw, 36), (296, 42), (270, 36), (240, 44), (210, 36), (184, 42), (158 + sw, 36)], fill=pix.MUST)
     d.line([(158 + sw, 36), (184, 42), (210, 36), (240, 44), (270, 36), (296, 42), (322 - sw, 36)], fill=pix.MUST_S, width=2)
+    fx.motes(img, d, T, 26, (0, 0, W, 200), (255, 240, 200), seed=7)
+    fx.fg(img, T, 'grass', (110, 90, 50), (255, 220, 140), (0, 1), 4, seed=5, h=0.8)
 
 
 def s_golden(img, d, lt, dur, T, amp):
@@ -364,6 +417,7 @@ def s_golden(img, d, lt, dur, T, amp):
 
 # ---------------------------------------------------------------- 5 风继续吹 世界继续作业
 def s_world(img, d, lt, dur, T, amp):
+    fx.LIGHT = ((-1, -0.7), (255, 246, 220))
     pix.sky(img, NOON_SKY)
     for i in range(6):                                         # 云飞快地跑（延时摄影）
         x = (i * 120 - lt * 90) % (W + 160) - 120
@@ -406,6 +460,7 @@ def s_world(img, d, lt, dur, T, amp):
     ang = lerp(-0.9, 0.9, lt / dur)
     for x in (196, 284):
         tfill(img, 'polygon', [(x - 6, 236), (x + 6, 236), (x + 6 + 60 * math.sin(ang), 244), (x - 6 + 60 * math.sin(ang), 244)], (60, 56, 80), 0.35)
+    fx.contact(img, 196, 236, 16, 0.4); fx.contact(img, 284, 236, 16, 0.4)
     person_s(img, 'boy', 196, 236, 2, view='side', expr='smile')
     person_s(img, 'girl', 284, 236, 2, view='side', expr='smile', flip=True)
     props.leaves(d, T, 20, wind=120, speed=30, seed=2, cols=((120, 190, 90), (170, 210, 110)))
@@ -428,12 +483,20 @@ def _compass(img, d, t, T):
         ang = target + 0.35 * math.exp(-k * 5) * math.sin(k * 25)
     cx, cy = 240, 120
     motifs.compass(img, d, cx, cy, 58, ang, T, glow_a=0.35 * span(t, lock, lock + 0.2) * (1 - span(t, lock + 0.2, lock + 1.2)))
-    # 捏着罗盘的手指
-    for k in range(3):
-        motifs.finger(d, cx - 72, cy - 10 + k * 13, 16, 10)
-        motifs.finger(d, cx + 58, cy - 6 + k * 13, 16, 10, True)
-    d.polygon([(cx - 96, cy - 18), (cx - 70, cy - 22), (cx - 66, H), (cx - 120, H)], fill=SKIN)
-    d.polygon([(cx + 96, cy - 14), (cx + 72, cy - 18), (cx + 70, H), (cx + 124, H)], fill=SKIN)
+    # 捏着罗盘的两只手：有明暗，下面露出天蓝色的袖口
+    def hands(l, ld):
+        for k in range(3):
+            motifs.finger(ld, cx - 72, cy - 10 + k * 13, 16, 10)
+            motifs.finger(ld, cx + 58, cy - 6 + k * 13, 16, 10, True)
+        ld.polygon([(cx - 97, cy - 19), (cx - 69, cy - 23), (cx - 65, H), (cx - 121, H)], fill=OUT)
+        ld.polygon([(cx - 96, cy - 18), (cx - 70, cy - 22), (cx - 66, H), (cx - 120, H)], fill=SKIN)
+        ld.polygon([(cx + 97, cy - 15), (cx + 71, cy - 19), (cx + 69, H), (cx + 125, H)], fill=OUT)
+        ld.polygon([(cx + 96, cy - 14), (cx + 72, cy - 18), (cx + 70, H), (cx + 124, H)], fill=SKIN)
+        for sg in (-1, 1):
+            ld.polygon([(cx + sg * 64, 220), (cx + sg * 128, 220), (cx + sg * 132, H), (cx + sg * 62, H)], fill=pix.SKY_T)
+            ld.line([(cx + sg * 64, 220), (cx + sg * 128, 220)], fill=(200, 230, 250), width=2)
+    lay = fx.lit_layer(hands, (0.4, -1), 0.3, (255, 236, 200))
+    img.paste(lay, (0, 0), lay)
     if t > lock:                                               # 锁定的一圈波纹
         k = t - lock
         r = 58 + k * 70
@@ -475,7 +538,7 @@ def _heartbeat(img, d, t, T):
         a = k * math.pi / 12 + t * 0.2
         d.polygon([(cx, cy), (cx + math.cos(a) * 400, cy + math.sin(a) * 400), (cx + math.cos(a + 0.08) * 400, cy + math.sin(a + 0.08) * 400)],
                   fill=(255, 196, 206))
-    props.bust(img, d, 'boy', 240, 40, 4, expr='surprised' if t < 1.2 else 'smile')
+    motifs.lit_bust(img, 'boy', 240, 40, 4, 'surprised' if t < 1.2 else 'smile', (-0.6, -1), (255, 240, 240))
     for ex in (196, 284):
         blend_box(img, (ex - 8, 120, ex + 8, 126), pix.BLUSH, np.full((6, 16), 0.7))
     beat = props.thump(T, 0.3)

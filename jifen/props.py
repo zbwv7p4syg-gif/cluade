@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 import pix
+import fx
 from pix import (W, H, FONT, FONT_S, OUT, SKIN, SKIN_S, clamp, lerp, lerpc, ease, eout, ein, eback, span, glow,
                  tfill, blend_box, paste, outline, text, rng, sky, stars, rain, city, lamp, with_alpha, heart_poly)
 
@@ -109,17 +110,14 @@ def zoom(img, s, cx=W / 2, cy=H / 2):
 
 # ---------------------------------------------------------------- 角色（任意倍数）
 def person_s(img, who, x, y, sc, age='young', view='side', pose='stand', ph=0, expr='smile', arms='auto', flip=False, alpha=1.0,
-             shade=None, tint=None):
-    """和 pix.person 一样，但可以按小数倍缩放（远处的人）"""
-    if abs(sc - round(sc)) < 1e-3 and sc >= 1:
-        pix.person(img, who, x, y, age, view, pose, ph, expr, arms, int(round(sc)), flip, None, tint, alpha, shade); return
-    im = pix.char_img(who, age, view, pose, ph % 4, expr, arms, None, tint)
-    if shade:
-        a = np.array(im); a[..., :3] = np.clip(a[..., :3] * np.array(shade), 0, 255).astype(np.uint8); im = Image.fromarray(a)
-    ax = pix.CX
-    if flip: im = im.transpose(Image.FLIP_LEFT_RIGHT); ax = pix.CW - 1 - pix.CX
+             shade=None, tint=None, light='auto', scarf=None):
+    """把角色放在 (x, y)（x 为身体中线，y 为脚底），可以按小数倍缩放。
+    角色带点阵明暗；light 默认取 fx.LIGHT（镜头里主光的方向和边缘光颜色）"""
+    L = fx.LIGHT if light == 'auto' else light
+    im = fx.lit_char(who, age, view, pose, ph % 4, expr, arms, scarf, tint, flip, L, tuple(shade) if shade else None)
+    ax = pix.CW - 1 - pix.CX if flip else pix.CX
     w, h = max(1, int(round(pix.CW * sc))), max(1, int(round(pix.CH * sc)))
-    im = im.resize((w, h), Image.NEAREST)
+    if (w, h) != im.size: im = im.resize((w, h), Image.NEAREST)
     if alpha < 1: im = with_alpha(im, alpha)
     img.paste(im, (int(round(x - ax * sc)), int(round(y - pix.FY * sc))), im)
 

@@ -13,6 +13,7 @@ import pix
 from pix import W, H, FPS, FONT, clamp, eout, ease, lerp, lerpc
 import props
 import motifs
+import fx
 import scenes
 
 SC = 4
@@ -136,7 +137,9 @@ def scene_at(T):
 def draw_scene(i, T):
     t0, fn = SCHED[i]
     img = Image.new('RGB', (W, H)); d = ImageDraw.Draw(img); d.fontmode = '1'
+    fx.LIGHT = None
     fn(img, d, T - t0, SCHED[i + 1][0] - t0, T, pix.amp(T))
+    fx.LIGHT = None
     return img
 
 
@@ -207,10 +210,10 @@ def sub_line(img, d, txt, lt, dur, T, y, base, hi):
         tx = lerp(x0 - 6, x0 + total - 4, (math.floor(k) + eout(k % 1)) / steps) if prog < 1 else x0 + total - 4
         lift = 0 if prog >= 1 else round(2 * math.sin(math.pi * (k % 1)))
         for j in range(1, 5):
-            fx = tx - j * 7
-            if fx < x0 - 8: break
-            if pix._B4[j % 4, int(fx) % 4] < (1 - j / 5) * (1 - out):
-                d.point([(fx, ry - 1 - (j % 2)), (fx + 1, ry - 1 - (j % 2))], fill=(236, 214, 170))
+            ftx = tx - j * 7
+            if ftx < x0 - 8: break
+            if pix._B4[j % 4, int(ftx) % 4] < (1 - j / 5) * (1 - out):
+                d.point([(ftx, ry - 1 - (j % 2)), (ftx + 1, ry - 1 - (j % 2))], fill=(236, 214, 170))
         motifs.mini_shoe(img, tx, ry - 1 - lift, 1 - out)
     x = x0; k_ch = 0; layers = []
     for i, ch in enumerate(chars):
@@ -273,6 +276,7 @@ def scene_frame(fi):
 def frame(fi):
     img, fn = scene_frame(fi)
     T = fi / FPS
+    fx.post(img, getattr(fn, 'bloom', 0.45), getattr(fn, 'grade', 1.0), getattr(fn, 'vig', 0.3))
     d = ImageDraw.Draw(img); d.fontmode = '1'
     ly = lyric_at(T)
     if ly and not getattr(fn, 'no_sub', False): subtitle(img, d, *ly, T, getattr(fn, 'sub_y', 246))
@@ -281,11 +285,11 @@ def frame(fi):
 
 def render_chunk(job):
     lo, hi, path = job
-    p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-',
-                          '-vf', f'scale={W * SC}:{H * SC}:flags=neighbor,format=yuv420p', '-c:v', 'libx264', '-preset', 'medium',
-                          '-tune', 'animation', '-crf', '20', '-threads', '2', path], stdin=subprocess.PIPE)
+    p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W * SC}x{H * SC}', '-r', str(FPS),
+                          '-i', '-', '-vf', 'format=yuv420p', '-c:v', 'libx264', '-preset', 'medium',
+                          '-tune', 'animation', '-crf', '20', '-maxrate', '14M', '-bufsize', '28M', '-threads', '2', path], stdin=subprocess.PIPE)
     for fi in range(lo, hi):
-        p.stdin.write(np.ascontiguousarray(frame(fi)).tobytes())
+        p.stdin.write(fx.upscale(frame(fi), fi).tobytes())
     p.stdin.close()
     if p.wait(): raise RuntimeError(f'ffmpeg failed on frames {lo}-{hi}')
     return path
@@ -298,6 +302,7 @@ def main():
     ap.add_argument('-o', '--out', help='输出文件，默认 build/几分之几_像素MV.mp4')
     ap.add_argument('--jobs', type=int, default=min(4, os.cpu_count() or 1), help='并行渲染的进程数')
     ap.add_argument('--stills', help='只抽帧检查：逗号分隔的秒数，输出到 build/stills/')
+    ap.add_argument('--full', action='store_true', help='抽帧时输出 1920×1080 的成片效果（含扫描线和颗粒）')
     ap.add_argument('--range', help='只渲染一段，例如 0,20（秒），输出带声音的预览')
     args = ap.parse_args()
     args.out = args.out or os.path.join(BUILD, '几分之几_像素MV.mp4')
@@ -307,7 +312,9 @@ def main():
         out = os.path.join(BUILD, 'stills'); os.makedirs(out, exist_ok=True)
         for t in map(float, args.stills.split(',')):
             path = os.path.join(out, f'{t:07.2f}.png')
-            Image.fromarray(frame(int(round(t * FPS)))).resize((W * 2, H * 2), Image.NEAREST).save(path)
+            fi = int(round(t * FPS))
+            if args.full: Image.fromarray(fx.upscale(frame(fi), fi)).save(path)
+            else: Image.fromarray(frame(fi)).resize((W * 2, H * 2), Image.NEAREST).save(path)
             print(path)
         return
 
