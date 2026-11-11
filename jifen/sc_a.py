@@ -89,9 +89,7 @@ def dark_bg(img, d, T, a=1.0, grid=0.0):
             pix.text(img, num, x, y - 8, col=c, out=None, font=FONT_S, alpha=al, shadow=False)
             blend_box(img, (int(x - 5), int(y), int(x + 5), int(y) + 1), c, np.full((1, 10), al * 1.6))
             pix.text(img, den, x, y + 8, col=c, out=None, font=FONT_S, alpha=al, shadow=False)
-        motes_on = a
-        import fx as _fx
-        _fx.motes(img, d, T, 30, (0, 0, W, H), (200, 190, 255), seed=31, drift=(1, -3), glow_a=0.15 * a)
+        fx.motes(img, d, T, 30, (0, 0, W, H), (200, 190, 255), seed=31, drift=(1, -3), glow_a=0.15 * a)
 
 
 def s_intro(img, d, lt, dur, T, amp):
